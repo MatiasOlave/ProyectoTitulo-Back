@@ -18,6 +18,8 @@ import { Vehicle } from "../transport/vehicle.entity";
 import { TripIncident } from "../transport/trip.incident.entity";
 import { DriverDocumentAlert } from "../transport/driver-document-alert.entity";
 import { Route } from "../transport/route.entity";
+import { RolePermission } from "../auth/role-permission.entity";
+import { UserRole } from "../auth/user-role.entity";
 
 @Entity('companies')
 export class Company extends BaseEntity {
@@ -61,6 +63,12 @@ export class Company extends BaseEntity {
 
   @OneToMany(() => Role, role => role.company)
   roles: Role[]
+
+  @OneToMany(() => RolePermission, rolePermission => rolePermission.company)
+  rolePermissions: RolePermission[]
+
+  @OneToMany(() => UserRole, userRole => userRole.company)
+  userRoles: UserRole[]
 
   @OneToMany(() => Student, student => student.company)
   students: Student[]

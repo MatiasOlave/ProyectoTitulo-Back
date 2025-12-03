@@ -2,6 +2,7 @@ import { Column, Entity, JoinColumn, ManyToOne } from "typeorm";
 import { User } from "./user.entity";
 import { Role } from "./role.entity";
 import { BaseEntity } from "../base.entity";
+import { Company } from "../companies/company.entity";
 
 @Entity('user_roles')
 export class UserRole extends BaseEntity {
@@ -18,6 +19,13 @@ export class UserRole extends BaseEntity {
 
     @Column({ name: 'role_id' })
     roleId: string
+
+    @ManyToOne(() => Company, company => company.userRoles)
+    @JoinColumn({ name: 'company_id' })
+    company: Company;
+
+    @Column({ name: 'company_id' })
+    companyId: string;
 
     @Column({ name: 'assigned_at', type: 'timestamp' })
     assignedAt: Date

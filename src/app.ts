@@ -6,6 +6,8 @@ import express from 'express';
 import morgan from 'morgan';
 import { authCompanyRoutes } from './routes/auth/auth-company.route';
 import authRoutes from './routes/auth/auth.route';
+import userRoutes from './routes/auth/user.route';
+import roleRoutes from './routes/auth/role.route';
 import { locationRoutes } from './routes/location.route';
 import { companyContextMiddleware } from './middlewares/company-context.middleware';
 import cookieParser from 'cookie-parser';
@@ -46,8 +48,11 @@ app.get('/', (_req: express.Request, res: express.Response) => {
   });
 });
 
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/auth/company', authCompanyRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/roles', roleRoutes);
 app.use('/api/locations', locationRoutes);
 
 app.use((_req, res) => {
