@@ -2,14 +2,16 @@
 import { Router } from 'express';
 import { userController } from '../../controllers/auth/user.controller';
 import { authMiddleware } from '../../middlewares/auth/auth.middleware';
-import { requireRole } from '../../middlewares/auth/permission.middleware';
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../../interfaces/auth/jwt.interface';
+
+import { companyContextMiddleware } from '../../middlewares/company-context.middleware';
 
 const router = Router();
 
 // All routes require authentication
 router.use(authMiddleware);
+router.use(companyContextMiddleware);
 
 // Helper middleware to require either DIRECTOR or ADMIN role
 const requireAdminOrDirector = (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -21,7 +23,7 @@ const requireAdminOrDirector = (req: AuthRequest, res: Response, next: NextFunct
         return;
     }
 
-    const hasRole = req.user.roles.includes('director') || req.user.roles.includes('admin');
+    const hasRole = req.user.roles.includes('DIRECTOR') || req.user.roles.includes('ADMIN');
 
     if (!hasRole) {
         res.status(403).json({

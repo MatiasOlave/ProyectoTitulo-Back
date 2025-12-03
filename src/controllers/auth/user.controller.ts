@@ -27,7 +27,6 @@ export const userController = {
                 validatedData.rut,
                 validatedData.phone,
                 validatedData.roleCode,
-                req.companyId!,
                 req.user!.userId,
                 validatedData.avatarUrl
             );

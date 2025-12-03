@@ -72,7 +72,7 @@ export const userFiltersSchema = z.object({
     isActive: z
         .enum(['true', 'false'])
         .optional()
-        .transform(val => val === 'true'),
+        .transform(val => val === undefined ? undefined : val === 'true'),
     page: z
         .string()
         .optional()

@@ -138,6 +138,7 @@ export const authCompanyService = {
 
         // 5. Asignar rol de Director al usuario
         const userRole = userRoleRepository.create({
+          companyId: savedCompany.id,
           userId: savedDirector.id,
           roleId: directorRole.id,
           assignedAt: new Date(),

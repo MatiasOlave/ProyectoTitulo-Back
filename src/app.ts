@@ -9,7 +9,6 @@ import authRoutes from './routes/auth/auth.route';
 import userRoutes from './routes/auth/user.route';
 import roleRoutes from './routes/auth/role.route';
 import { locationRoutes } from './routes/location.route';
-import { companyContextMiddleware } from './middlewares/company-context.middleware';
 import cookieParser from 'cookie-parser';
 
 config();
@@ -27,10 +26,6 @@ app.use(cors({
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-
-// Company context middleware (will extract companyId from authenticated user)
-// Note: This should be applied AFTER auth middleware when you implement it
-app.use(companyContextMiddleware);
 
 // Rutas de salud
 app.get('/health', (_req: express.Request, res: express.Response) => {
@@ -51,6 +46,8 @@ app.get('/', (_req: express.Request, res: express.Response) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/auth/company', authCompanyRoutes);
+
+
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/locations', locationRoutes);

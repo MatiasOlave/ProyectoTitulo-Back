@@ -44,6 +44,7 @@ export class ScopedRepository<T extends { companyId: string }> {
     create(entityLike: DeepPartial<T>): T {
         const entity = this.repository.create(entityLike);
         const companyId = getCompanyId();
+        console.log('companyId desde scoped-repository:', companyId);
         if (companyId && !isIsolationBypassed()) {
             (entity as any).companyId = companyId;
         }

@@ -161,11 +161,11 @@ export const userService = {
                 emailVerified: user.emailVerified,
                 lastLoginAt: user.lastLoginAt,
                 createdAt: user.createdAt,
-                roles: user.userRoles.map((ur: any) => ({
+                roles: user.userRoles ? user.userRoles.map((ur: any) => ({
                     id: ur.role.id,
                     name: ur.role.name,
                     code: ur.role.code
-                }))
+                })) : []
             })),
             pagination: {
                 total,
