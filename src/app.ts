@@ -9,6 +9,7 @@ import authRoutes from './routes/auth/auth.route';
 import userRoutes from './routes/auth/user.route';
 import roleRoutes from './routes/auth/role.route';
 import { locationRoutes } from './routes/location.route';
+import dashboardRoutes from './routes/dashboard.route';
 import cookieParser from 'cookie-parser';
 
 config();
@@ -51,6 +52,7 @@ app.use('/api/auth/company', authCompanyRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/locations', locationRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'Route not found' });
