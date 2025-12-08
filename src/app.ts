@@ -11,6 +11,7 @@ import roleRoutes from './routes/auth/role.route';
 import { locationRoutes } from './routes/location.route';
 import dashboardRoutes from './routes/dashboard.route';
 import cookieParser from 'cookie-parser';
+import teachersRoutes from './routes/teachers.route';
 
 config();
 
@@ -53,6 +54,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/teachers', teachersRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'Route not found' });
