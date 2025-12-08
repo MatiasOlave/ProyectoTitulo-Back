@@ -39,7 +39,7 @@ export class Student extends BaseEntity {
     @Column({ type: 'varchar', length: 50 })
     gender: string;
 
-    @Column({ name: 'photo_url', type: 'text' })
+    @Column({ name: 'photo_url', type: 'text', nullable: true })
     photoUrl: string;
 
     @Column({ type: 'text' })
