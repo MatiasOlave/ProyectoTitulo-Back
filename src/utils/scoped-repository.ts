@@ -55,6 +55,10 @@ export class ScopedRepository<T extends { companyId: string }> {
         // Subscriber will also check this, but good to be explicit
         return this.repository.save(entity, options);
     }
+
+    async remove(entity: T): Promise<T> {
+        return this.repository.remove(entity);
+    }
 }
 
 // Helper to easily get a scoped repository

@@ -8,6 +8,8 @@ import { authCompanyRoutes } from './routes/auth/auth-company.route';
 import authRoutes from './routes/auth/auth.route';
 import userRoutes from './routes/auth/user.route';
 import roleRoutes from './routes/auth/role.route';
+import studentRoutes from './routes/student.routes';
+import levelRoutes from './routes/level.routes';
 import { locationRoutes } from './routes/location.route';
 import cookieParser from 'cookie-parser';
 
@@ -46,57 +48,31 @@ app.get('/', (_req: express.Request, res: express.Response) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/auth/company', authCompanyRoutes);
-
-
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
+app.use('/api/students', studentRoutes);
+app.use('/api/levels', levelRoutes);
 app.use('/api/locations', locationRoutes);
 
-app.use((_req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// Manejo global de errores
-app.use((error: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Error:', error);
-
-  if (error.type === 'entity.parse.failed') {
-    return res.status(400).json({
-      error: 'Invalid JSON in request body'
-    });
-  }
-
-  return res.status(500).json({
-    error: 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { details: error.message })
+// Error handling basic
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error(err.stack);
+  res.status(500).json({
+    success: false,
+    message: 'Something broke!',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });
 
-// Inicializar servidor
 const startServer = async () => {
-  try {
-    await initializeDatabase();
-
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-    });
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  }
+  await initializeDatabase();
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 };
 
-// Manejo graceful de shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  process.exit(0);
-});
+if (require.main === module) {
+  startServer();
+}
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
-  process.exit(0);
-});
-
-startServer();
+export default app;
