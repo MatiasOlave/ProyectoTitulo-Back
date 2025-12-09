@@ -124,7 +124,7 @@ export const userService = {
         // Apply search filter
         if (search) {
             queryBuilder.andWhere(
-                '(user.firstName ILIKE :search OR user.lastName ILIKE :search OR user.email ILIKE :search OR user.rut ILIKE :search)',
+                '(user.firstName LIKE :search OR user.lastName LIKE :search OR user.email LIKE :search OR user.rut LIKE :search)',
                 { search: `%${search}%` }
             );
         }
@@ -292,6 +292,30 @@ export const userService = {
         return {
             success: true,
             message: 'Usuario desactivado correctamente'
+        };
+    },
+
+    /**
+     * Toggle user active status
+     */
+    async toggleUserStatus(userId: string, companyId: string) {
+        const userRepo = getScopedRepository(User);
+
+        const user = await userRepo.findOne({
+            where: { id: userId }
+        });
+
+        if (!user) {
+            throw new Error('Usuario no encontrado');
+        }
+
+        user.isActive = !user.isActive;
+        await userRepo.save(user);
+
+        return {
+            success: true,
+            message: `Usuario ${user.isActive ? 'activado' : 'desactivado'} correctamente`,
+            isActive: user.isActive
         };
     },
 
