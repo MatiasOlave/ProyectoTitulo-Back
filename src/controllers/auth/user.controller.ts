@@ -198,5 +198,27 @@ export const userController = {
                 error: error.message
             });
         }
+    },
+
+    /**
+     * PATCH /api/users/:id/toggle-status
+     * Toggle user active status
+     */
+    async toggleUserStatus(req: AuthRequest, res: Response) {
+        try {
+            const { id } = req.params;
+
+            const result = await userService.toggleUserStatus(
+                id,
+                req.companyId!
+            );
+
+            return res.json(result);
+        } catch (error: any) {
+            return res.status(400).json({
+                success: false,
+                error: error.message
+            });
+        }
     }
 };
