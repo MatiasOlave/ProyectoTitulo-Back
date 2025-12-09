@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { AppDataSource } from '../config/database';
+import { getScopedRepository } from '../utils/scoped-repository';
 import { User } from '../entities/auth/user.entity';
 import { UserRole } from '../entities/auth/user-role.entity';
 import { Role } from '../entities/auth/role.entity';
@@ -24,14 +25,16 @@ export const getTeacherDetails = async (req: AuthRequest, res: Response): Promis
         const { id } = req.params;
         const { companyId } = req;
 
-        const userRepository = AppDataSource.getRepository(User);
-        const activityRepository = AppDataSource.getRepository(ActivityPlanning);
-        const classBookRepository = AppDataSource.getRepository(ClassBookEntry);
+        // Use Scoped Repository for Isolation
+        const userRepository = getScopedRepository(User);
+        const activityRepository = getScopedRepository(ActivityPlanning);
+        const classBookRepository = getScopedRepository(ClassBookEntry);
 
         // 1. Get Teacher Basic Info
+        // Note: scoped repository automatically handles companyId = req.companyId
         const teacher = await userRepository.findOne({
-            where: { id, companyId },
-            relations: ['userRoles', 'userRoles.role'] // simple relation load
+            where: { id },
+            relations: ['userRoles', 'userRoles.role']
         });
 
         if (!teacher) {
@@ -39,20 +42,24 @@ export const getTeacherDetails = async (req: AuthRequest, res: Response): Promis
             return;
         }
 
-        // 2. Aggregate Stats using QueryBuilder for performance
-        // Count Activity Plannings
+        // 2. Aggregate Stats
         const planningCount = await activityRepository.count({
-            where: { teacherId: id, companyId }
+            where: { teacherId: id }
         });
 
-        // Count Class Book Entries
         const classBookCount = await classBookRepository.count({
-            where: { teacherId: id, companyId }
+            where: { teacherId: id }
         });
 
-        // 3. Get Distinct Levels Taught (from Activity Plannings)
-        // We join to Level entity to get names
-        const distinctLevels = await activityRepository.createQueryBuilder('ap')
+        // 3. Get Distinct Levels Taught
+        // For QueryBuilder we MUST manually add companyId check if we use raw `createQueryBuilder` on the repository
+        // But getScopedRepository wrapper handles 'find' methods.
+        // For createQueryBuilder on a scoped repo, we effectively access the underlying repo, so we must be careful.
+        // SAFE APPROACH: Use the scoped repo instance which usually proxies this, BUT standard TypeORM Scoped repo might not fully wrap queryBuilder automatically in all setups.
+        // Given existing docs, we should manually ensure companyId in QueryBuilder to be 100% safe or use find with relation.
+        // Let's use the QueryBuilder from the underlying repository but ADD the companyId filter explicitly as per docs.
+
+        const distinctLevels = await activityRepository['repository'].createQueryBuilder('ap')
             .innerJoin('ap.level', 'level')
             .where('ap.teacherId = :id', { id })
             .andWhere('ap.companyId = :companyId', { companyId })
@@ -82,15 +89,19 @@ export const getTeacherDetails = async (req: AuthRequest, res: Response): Promis
 export const getTeachers = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const { companyId, user } = req;
-        const userRepository = AppDataSource.getRepository(User); // Use AppDataSource
+        const { status } = req.query; // 'active', 'inactive', 'all'
 
-        // 1. Build Query using explicit JOINs as per Schema
-        const queryBuilder = userRepository.createQueryBuilder('user')
+        // Use Scoped Repository
+        const userRepository = getScopedRepository(User);
+
+        // 1. Build Query
+        // Accessing the underlying repository for complex joins
+        const queryBuilder = userRepository['repository'].createQueryBuilder('user')
             // Join user_roles
             .innerJoin('user.userRoles', 'userRole')
             // Join roles
             .innerJoin('userRole.role', 'role')
-            // Filter by Company
+            // Filter by Company (CRITICAL for QueryBuilder)
             .where('user.companyId = :companyId', { companyId })
             // Filter by Role Code 'TEACHER'
             .andWhere('role.code = :roleCode', { roleCode: 'TEACHER' })
@@ -106,7 +117,19 @@ export const getTeachers = async (req: AuthRequest, res: Response): Promise<void
                 'user.avatarUrl'
             ]);
 
-        // 2. ACL: Self-Exclusion Logic
+        // 2. Apply Status Filter
+        if (status === 'active') {
+            queryBuilder.andWhere('user.isActive = :isActive', { isActive: true });
+        } else if (status === 'inactive') {
+            queryBuilder.andWhere('user.isActive = :isActive', { isActive: false });
+        }
+        // if status === 'all', do nothing (show all)
+
+        // 3. ACL: Self-Exclusion Logic (If logged in as teacher, don't show self in list?? Or maybe yes?
+        // Requirement said: "Solo pueden ver datos generales de sus colegas."
+        // Usually "colleagues" implies others. Let's exclude self to be safe, or keep it.
+        // Context: "Lista de Colegas". Usually excludes yourself or includes.
+        // Let's exclude current user so it's strictly "Colleagues".
         if (isTeacherRole(req) && user?.userId) {
             queryBuilder.andWhere('user.id != :currentUserId', { currentUserId: user.userId });
         }
@@ -127,6 +150,10 @@ export const getTeachers = async (req: AuthRequest, res: Response): Promise<void
     }
 };
 
+/**
+ * @deprecated This endpoint is no longer used by the Teachers Module (Create functionality removed).
+ * Retained for compatibility or future global registration needs.
+ */
 export const createTeacher = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         // 1. Strict ACL
@@ -138,9 +165,11 @@ export const createTeacher = async (req: AuthRequest, res: Response): Promise<vo
         const { companyId } = req;
         const { firstName, lastName, email, rut, phone, password } = req.body;
 
-        const userRepository = AppDataSource.getRepository(User); // Use AppDataSource
+        const userRepository = getScopedRepository(User);
 
-        // Validation
+        // Validation - Check email in this company (or globally if email logic dictates, but usually per company for collision check if tenancy allows same email in diff company?
+        // User Service usually handles uniqueness. Standard is strict email uniqueness.
+        // Let's check simply.
         const existingUser = await userRepository.findOne({ where: { email } });
         if (existingUser) {
             res.status(400).json({ success: false, error: 'El email ya está registrado' });
@@ -149,13 +178,13 @@ export const createTeacher = async (req: AuthRequest, res: Response): Promise<vo
 
         const passwordHash = await bcrypt.hash(password || rut, 10);
 
-        const newUser = userRepository.create({ // Use .create() from repository
+        // Create with scoped repository - automatically adds companyId
+        const newUser = userRepository.create({
             firstName,
             lastName,
             email,
             rut,
             phone,
-            companyId: companyId!,
             passwordHash,
             isActive: true
         });
@@ -163,18 +192,24 @@ export const createTeacher = async (req: AuthRequest, res: Response): Promise<vo
         await userRepository.save(newUser);
 
         // Assign TEACHER role
-        const roleRepository = AppDataSource.getRepository(Role); // Use AppDataSource
-        const teacherRole = await roleRepository.findOne({ where: { code: 'TEACHER', companyId } });
+        // Use AppDataSource directly to allow finding System Roles (Global) that might not have company_id
+        const roleRepository = AppDataSource.getRepository(Role); // Bypass scope for Role lookup
+
+        const teacherRole = await roleRepository.findOne({
+            where: [
+                { code: 'TEACHER', companyId },
+                { code: 'TEACHER', isSystemRole: true }
+            ]
+        });
 
         if (!teacherRole) {
-            throw new Error("Rol 'TEACHER' no encontrado para esta compañía");
+            throw new Error("Rol 'TEACHER' no encontrado (ni en compañía ni como rol de sistema)");
         }
 
-        const userRoleRepository = AppDataSource.getRepository(UserRole); // Use AppDataSource
+        const userRoleRepository = getScopedRepository(UserRole);
         const userRole = userRoleRepository.create({
-            user: newUser,
-            role: teacherRole,
-            companyId: companyId!,
+            userId: newUser.id,
+            roleId: teacherRole.id,
             assignedAt: new Date(),
             assignedById: req.user!.userId
         });
@@ -195,7 +230,7 @@ export const createTeacher = async (req: AuthRequest, res: Response): Promise<vo
         console.error('Error creating teacher:', error);
         res.status(500).json({
             success: false,
-            error: 'Error interno al crear profesor'
+            error: error instanceof Error ? error.message : 'Error interno al crear profesor'
         });
     }
 };
@@ -211,8 +246,8 @@ export const updateTeacher = async (req: AuthRequest, res: Response): Promise<vo
         const { id } = req.params;
         const { firstName, lastName, email, rut, phone, isActive } = req.body;
 
-        const userRepository = AppDataSource.getRepository(User); // Use AppDataSource
-        const teacher = await userRepository.findOne({ where: { id, companyId: req.companyId } });
+        const userRepository = getScopedRepository(User);
+        const teacher = await userRepository.findOne({ where: { id } });
 
         if (!teacher) {
             res.status(404).json({ success: false, error: 'Profesor no encontrado' });
@@ -246,17 +281,19 @@ export const deleteTeacher = async (req: AuthRequest, res: Response): Promise<vo
 
         const { id } = req.params;
 
-        const userRepository = AppDataSource.getRepository(User); // Use AppDataSource
-        const teacher = await userRepository.findOne({ where: { id, companyId: req.companyId } });
+        const userRepository = getScopedRepository(User);
+        const teacher = await userRepository.findOne({ where: { id } });
 
         if (!teacher) {
             res.status(404).json({ success: false, error: 'Profesor no encontrado' });
             return;
         }
 
-        await userRepository.delete(id);
+        // Soft delete: Set isActive = false instead of deleting hard
+        teacher.isActive = false;
+        await userRepository.save(teacher);
 
-        res.json({ success: true, message: 'Profesor eliminado correctamente' });
+        res.json({ success: true, message: 'Profesor desactivado correctamente' });
 
     } catch (error) {
         console.error('Error deleting teacher:', error);
