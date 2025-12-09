@@ -59,6 +59,16 @@ export class ScopedRepository<T extends { companyId: string }> {
     async remove(entity: T): Promise<T> {
         return this.repository.remove(entity);
     }
+    async count(options?: FindManyOptions<T>): Promise<number> {
+        const scope = this.getScope();
+        return this.repository.count({
+            ...options,
+            where: {
+                ...(options?.where || {}),
+                ...scope,
+            } as any,
+        });
+    }
 }
 
 // Helper to easily get a scoped repository

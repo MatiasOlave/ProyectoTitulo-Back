@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { AppDataSource } from '../config/database';
+import { getScopedRepository } from '../utils/scoped-repository';
+import { AppDataSource } from '../config/database'; // Kept for transactions if needed, but mostly scoped
 import { User } from '../entities/auth/user.entity';
 import { UserRole } from '../entities/auth/user-role.entity';
 import { Role } from '../entities/auth/role.entity';
@@ -8,30 +9,49 @@ import { ClassBookEntry } from '../entities/academic/class-book-entry.entity';
 import { AuthRequest } from '../interfaces/auth/jwt.interface';
 import bcrypt from 'bcryptjs';
 
+const isAdminOrDirector = (req: AuthRequest): boolean => {
+    const roles = req.user?.roles || [];
+    return roles.some((r: any) => {
+        const code = (typeof r === 'string' ? r : r.code)?.toUpperCase();
+        return code === 'ADMIN' || code === 'DIRECTOR';
+    });
+};
+
 const isTeacherRole = (req: AuthRequest): boolean => {
     const roles = req.user?.roles || [];
-    // Check if roles contains 'TEACHER' code
-    // req.user.roles comes from JwtPayload which usually has mapped roles
-    // We handle both object with code or string
     return roles.some((r: any) => {
         const code = typeof r === 'string' ? r : r.code;
         return code === 'TEACHER';
     });
 };
 
+const hasTeacherModuleAccess = (req: AuthRequest): boolean => {
+    const roles = req.user?.roles || [];
+    return roles.some((r: any) => {
+        const code = (typeof r === 'string' ? r : r.code)?.toUpperCase();
+        return ['ADMIN', 'DIRECTOR', 'TEACHER'].includes(code);
+    });
+};
+
 export const getTeacherDetails = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
+        if (!hasTeacherModuleAccess(req)) {
+            res.status(403).json({ success: false, error: 'Acceso denegado. Rol no autorizado.' });
+            return;
+        }
+
         const { id } = req.params;
         const { companyId } = req;
 
-        const userRepository = AppDataSource.getRepository(User);
-        const activityRepository = AppDataSource.getRepository(ActivityPlanning);
-        const classBookRepository = AppDataSource.getRepository(ClassBookEntry);
+        // Use Scoped Repository for Isolation
+        const userRepository = getScopedRepository(User);
+        const activityRepository = getScopedRepository(ActivityPlanning);
+        const classBookRepository = getScopedRepository(ClassBookEntry);
 
         // 1. Get Teacher Basic Info
         const teacher = await userRepository.findOne({
-            where: { id, companyId },
-            relations: ['userRoles', 'userRoles.role'] // simple relation load
+            where: { id },
+            relations: ['userRoles', 'userRoles.role']
         });
 
         if (!teacher) {
@@ -39,27 +59,24 @@ export const getTeacherDetails = async (req: AuthRequest, res: Response): Promis
             return;
         }
 
-        // 2. Aggregate Stats using QueryBuilder for performance
-        // Count Activity Plannings
+        // 2. Aggregate Stats
         const planningCount = await activityRepository.count({
-            where: { teacherId: id, companyId }
+            where: { teacherId: id }
         });
 
-        // Count Class Book Entries
         const classBookCount = await classBookRepository.count({
-            where: { teacherId: id, companyId }
+            where: { teacherId: id }
         });
 
-        // 3. Get Distinct Levels Taught (from Activity Plannings)
-        // We join to Level entity to get names
-        const distinctLevels = await activityRepository.createQueryBuilder('ap')
+        // 3. Get Distinct Levels Taught
+        const distinctLevels = await activityRepository['repository'].createQueryBuilder('ap')
             .innerJoin('ap.level', 'level')
             .where('ap.teacherId = :id', { id })
             .andWhere('ap.companyId = :companyId', { companyId })
             .select('DISTINCT level.name', 'name')
             .getRawMany();
 
-        const levelsTaught = distinctLevels.map(l => l.name);
+        const levelsTaught = distinctLevels.map((l: any) => l.name);
 
         res.json({
             success: true,
@@ -81,20 +98,21 @@ export const getTeacherDetails = async (req: AuthRequest, res: Response): Promis
 
 export const getTeachers = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        const { companyId, user } = req;
-        const userRepository = AppDataSource.getRepository(User); // Use AppDataSource
+        if (!hasTeacherModuleAccess(req)) {
+            res.status(403).json({ success: false, error: 'Acceso denegado. Rol no autorizado.' });
+            return;
+        }
 
-        // 1. Build Query using explicit JOINs as per Schema
-        const queryBuilder = userRepository.createQueryBuilder('user')
-            // Join user_roles
+        const { companyId, user } = req;
+        const { status } = req.query;
+        const userRepository = getScopedRepository(User);
+
+        // Build Query - ScopedRepository guarantees companyId filter
+        const queryBuilder = userRepository['repository'].createQueryBuilder('user')
             .innerJoin('user.userRoles', 'userRole')
-            // Join roles
             .innerJoin('userRole.role', 'role')
-            // Filter by Company
             .where('user.companyId = :companyId', { companyId })
-            // Filter by Role Code 'TEACHER'
             .andWhere('role.code = :roleCode', { roleCode: 'TEACHER' })
-            // Select specific fields
             .select([
                 'user.id',
                 'user.firstName',
@@ -106,7 +124,13 @@ export const getTeachers = async (req: AuthRequest, res: Response): Promise<void
                 'user.avatarUrl'
             ]);
 
-        // 2. ACL: Self-Exclusion Logic
+        // Status Filter
+        if (status === 'active') {
+            queryBuilder.andWhere('user.isActive = :isActive', { isActive: true });
+        } else if (status === 'inactive') {
+            queryBuilder.andWhere('user.isActive = :isActive', { isActive: false });
+        }
+
         if (isTeacherRole(req) && user?.userId) {
             queryBuilder.andWhere('user.id != :currentUserId', { currentUserId: user.userId });
         }
@@ -127,20 +151,20 @@ export const getTeachers = async (req: AuthRequest, res: Response): Promise<void
     }
 };
 
+/**
+ * @deprecated This endpoint is no longer used by the Teachers Module (Create functionality removed).
+ * Retained for compatibility or future global registration needs.
+ */
 export const createTeacher = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        // 1. Strict ACL
         if (isTeacherRole(req)) {
             res.status(403).json({ success: false, error: 'No tienes permiso para realizar esta acción' });
             return;
         }
 
-        const { companyId } = req;
         const { firstName, lastName, email, rut, phone, password } = req.body;
+        const userRepository = getScopedRepository(User);
 
-        const userRepository = AppDataSource.getRepository(User); // Use AppDataSource
-
-        // Validation
         const existingUser = await userRepository.findOne({ where: { email } });
         if (existingUser) {
             res.status(400).json({ success: false, error: 'El email ya está registrado' });
@@ -149,32 +173,34 @@ export const createTeacher = async (req: AuthRequest, res: Response): Promise<vo
 
         const passwordHash = await bcrypt.hash(password || rut, 10);
 
-        const newUser = userRepository.create({ // Use .create() from repository
+        const newUser = userRepository.create({
             firstName,
             lastName,
             email,
             rut,
             phone,
-            companyId: companyId!,
             passwordHash,
             isActive: true
         });
 
         await userRepository.save(newUser);
 
-        // Assign TEACHER role
-        const roleRepository = AppDataSource.getRepository(Role); // Use AppDataSource
-        const teacherRole = await roleRepository.findOne({ where: { code: 'TEACHER', companyId } });
+        const roleRepository = AppDataSource.getRepository(Role);
+        const teacherRole = await roleRepository.findOne({
+            where: [
+                { code: 'TEACHER', companyId: req.companyId },
+                { code: 'TEACHER', isSystemRole: true }
+            ]
+        });
 
         if (!teacherRole) {
-            throw new Error("Rol 'TEACHER' no encontrado para esta compañía");
+            throw new Error("Rol 'TEACHER' no encontrado");
         }
 
-        const userRoleRepository = AppDataSource.getRepository(UserRole); // Use AppDataSource
+        const userRoleRepository = getScopedRepository(UserRole);
         const userRole = userRoleRepository.create({
-            user: newUser,
-            role: teacherRole,
-            companyId: companyId!,
+            userId: newUser.id,
+            roleId: teacherRole.id, // Direct ID assignment
             assignedAt: new Date(),
             assignedById: req.user!.userId
         });
@@ -195,24 +221,24 @@ export const createTeacher = async (req: AuthRequest, res: Response): Promise<vo
         console.error('Error creating teacher:', error);
         res.status(500).json({
             success: false,
-            error: 'Error interno al crear profesor'
+            error: error instanceof Error ? error.message : 'Error interno al crear profesor'
         });
     }
 };
 
 export const updateTeacher = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        // 1. Strict ACL
-        if (isTeacherRole(req)) {
-            res.status(403).json({ success: false, error: 'No tienes permisos' });
+        // 1. Strict ACL: Only ADMIN or DIRECTOR
+        if (!isAdminOrDirector(req)) {
+            res.status(403).json({ success: false, error: 'No tienes permisos para editar. Se requiere rol ADMIN o DIRECTOR.' });
             return;
         }
 
         const { id } = req.params;
         const { firstName, lastName, email, rut, phone, isActive } = req.body;
 
-        const userRepository = AppDataSource.getRepository(User); // Use AppDataSource
-        const teacher = await userRepository.findOne({ where: { id, companyId: req.companyId } });
+        const userRepository = getScopedRepository(User);
+        const teacher = await userRepository.findOne({ where: { id } });
 
         if (!teacher) {
             res.status(404).json({ success: false, error: 'Profesor no encontrado' });
@@ -238,28 +264,29 @@ export const updateTeacher = async (req: AuthRequest, res: Response): Promise<vo
 
 export const deleteTeacher = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        // 1. Strict ACL
-        if (isTeacherRole(req)) {
-            res.status(403).json({ success: false, error: 'No tienes permisos' });
+        // 1. Strict ACL: Only ADMIN or DIRECTOR
+        if (!isAdminOrDirector(req)) {
+            res.status(403).json({ success: false, error: 'No tienes permisos para eliminar. Se requiere rol ADMIN o DIRECTOR.' });
             return;
         }
 
         const { id } = req.params;
-
-        const userRepository = AppDataSource.getRepository(User); // Use AppDataSource
-        const teacher = await userRepository.findOne({ where: { id, companyId: req.companyId } });
+        const userRepository = getScopedRepository(User);
+        const teacher = await userRepository.findOne({ where: { id } });
 
         if (!teacher) {
             res.status(404).json({ success: false, error: 'Profesor no encontrado' });
             return;
         }
 
-        await userRepository.delete(id);
+        // Soft Delete
+        teacher.isActive = false;
+        await userRepository.save(teacher);
 
-        res.json({ success: true, message: 'Profesor eliminado correctamente' });
+        res.json({ success: true, message: 'Profesor desactivado correctamente' });
 
     } catch (error) {
         console.error('Error deleting teacher:', error);
         res.status(500).json({ success: false, error: 'Error al eliminar profesor' });
     }
-}
+};
