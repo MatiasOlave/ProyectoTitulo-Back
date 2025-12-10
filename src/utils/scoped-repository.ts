@@ -71,6 +71,10 @@ export class ScopedRepository<T extends { companyId: string }> {
         return this.repository.remove(entity);
     }
 
+    async softRemove(entity: T): Promise<T> {
+        return this.repository.softRemove(entity);
+    }
+
     createQueryBuilder(alias: string) {
         const scope = this.getScope();
         const qb = this.repository.createQueryBuilder(alias);

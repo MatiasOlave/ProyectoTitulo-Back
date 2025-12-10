@@ -60,6 +60,10 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/teachers', teachersRoutes);
 app.use('/api/routes', transportRoutes);
 
+// Static files (Images)
+import path from 'path';
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // Error handling basic
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err.stack);
