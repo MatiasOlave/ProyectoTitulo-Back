@@ -95,7 +95,11 @@ export const authService = {
           id: user.company.id,
           name: user.company.name,
         },
-        roles,
+        roles: userRoles.map(ur => ({
+          id: ur.role.id,
+          name: ur.role.name,
+          code: ur.role.code
+        })),
         permissions,
       },
     };
@@ -225,7 +229,11 @@ export const authService = {
             id: user.company.id,
             name: user.company.name,
           },
-          roles,
+          roles: userRoles.map(ur => ({
+            id: ur.role.id,
+            name: ur.role.name,
+            code: ur.role.code
+          })),
           permissions,
         }
       };

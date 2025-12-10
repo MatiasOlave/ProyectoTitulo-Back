@@ -148,13 +148,13 @@ export const userController = {
 
     /**
      * DELETE /api/users/:id
-     * Deactivate user (soft delete)
+     * Delete user (soft delete)
      */
-    async deactivateUser(req: AuthRequest, res: Response) {
+    async deleteUser(req: AuthRequest, res: Response) {
         try {
             const { id } = req.params;
 
-            const result = await userService.deactivateUser(id, req.companyId!);
+            const result = await userService.deleteUser(id, req.companyId!, req.user!.userId);
 
             return res.json(result);
         } catch (error: any) {
@@ -210,7 +210,8 @@ export const userController = {
 
             const result = await userService.toggleUserStatus(
                 id,
-                req.companyId!
+                req.companyId!,
+                req.user!.userId
             );
 
             return res.json(result);
