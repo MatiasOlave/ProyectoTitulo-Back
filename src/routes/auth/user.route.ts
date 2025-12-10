@@ -43,6 +43,7 @@ router.get('/:id', requireAdminOrDirector, userController.getUserById);
 router.put('/:id', requireAdminOrDirector, userController.updateUser);
 router.delete('/:id', requireAdminOrDirector, userController.deactivateUser);
 router.patch('/:id/role', requireAdminOrDirector, userController.changeUserRole);
+router.patch('/:id/toggle-status', requireAdminOrDirector, userController.toggleUserStatus);
 
 export default router;
 
