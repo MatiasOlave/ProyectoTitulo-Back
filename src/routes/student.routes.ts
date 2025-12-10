@@ -11,9 +11,10 @@ router.use(companyContextMiddleware);
 
 // Roles permitidos para gestionar estudiantes (Lectura)
 // Roles permitidos para gestionar estudiantes (Lectura)
-const READ_ROLES = ['Administrador', 'Director', 'Profesor'];
+// Roles permitidos para gestionar estudiantes (Lectura)
+const READ_ROLES = ['ADMIN', 'DIRECTOR', 'TEACHER'];
 // Roles permitidos para modificar (Escritura)
-const WRITE_ROLES = ['Administrador', 'Director'];
+const WRITE_ROLES = ['ADMIN', 'DIRECTOR'];
 
 router.post('/enroll', requireAnyRole(WRITE_ROLES), studentController.createStudent);
 router.post('/', requireAnyRole(WRITE_ROLES), studentController.createStudent);
