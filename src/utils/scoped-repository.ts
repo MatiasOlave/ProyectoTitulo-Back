@@ -38,6 +38,17 @@ export class ScopedRepository<T extends { companyId: string }> {
         });
     }
 
+    async count(options?: FindManyOptions<T>): Promise<number> {
+        const scope = this.getScope();
+        return this.repository.count({
+            ...options,
+            where: {
+                ...(options?.where || {}),
+                ...scope,
+            } as any,
+        });
+    }
+
     // Proxy other methods as needed, or expose repository for unsafe operations if needed
     // But for "Strategy", we should encourage using this wrapper.
 
@@ -58,6 +69,15 @@ export class ScopedRepository<T extends { companyId: string }> {
 
     async remove(entity: T): Promise<T> {
         return this.repository.remove(entity);
+    }
+
+    createQueryBuilder(alias: string) {
+        const scope = this.getScope();
+        const qb = this.repository.createQueryBuilder(alias);
+        if (scope.companyId) {
+            qb.andWhere(`${alias}.companyId = :companyId`, { companyId: scope.companyId });
+        }
+        return qb;
     }
 }
 

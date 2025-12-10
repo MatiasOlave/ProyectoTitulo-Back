@@ -10,12 +10,14 @@ export const createStudentSchema = z.object({
     gender: z.string().min(1, 'Género es requerido'),
     address: z.string().min(5, 'Dirección debe tener al menos 5 caracteres'),
     enrollmentDate: z.string().transform((str) => new Date(str)),
-    // Optional fields initially or handled later
-    email: z.string().email().optional(), // If student has email
+    levelId: z.string().uuid('ID de nivel inválido'), // Required
+
+    // Optional fields
+    email: z.string().email().optional(),
     phone: z.string().optional(),
     photoUrl: z.string().url().optional(),
-    levelId: z.string().uuid().optional(),
     cityId: z.string().uuid().optional(),
+    enrollmentNumber: z.string().optional(), // Optional, auto-generated if missing
 });
 
 // Schema for updating a student
@@ -33,13 +35,20 @@ export const updateStudentSchema = z.object({
     cityId: z.string().uuid().optional().nullable().or(z.literal('')),
     withdrawalDate: z.string().transform((str) => str ? new Date(str) : null).optional().nullable().or(z.literal('')),
     withdrawalReason: z.string().optional().nullable(),
+    enrollmentNumber: z.string().optional(),
+    routeId: z.string().optional().nullable().or(z.literal('')) // New field for route assignment
 });
 
 // Schema for student filters
 export const studentFiltersSchema = z.object({
     search: z.string().optional(),
+    name: z.string().optional(),
+    rut: z.string().optional(),
     status: z.string().optional(),
     levelId: z.string().optional(),
+    age_min: z.string().optional().transform(val => val ? parseInt(val, 10) : undefined),
+    age_max: z.string().optional().transform(val => val ? parseInt(val, 10) : undefined),
+    enrollment_year: z.string().optional().transform(val => val ? parseInt(val, 10) : undefined),
     page: z.string().optional().transform(val => val ? parseInt(val, 10) : 1),
     limit: z.string().optional().transform(val => val ? parseInt(val, 10) : 10)
 });
