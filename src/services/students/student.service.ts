@@ -25,9 +25,23 @@ export const studentService = {
             enrollmentNumber?: string;
             email?: string;
             phone?: string;
+            routeId?: string | null;
+            emergencyContacts: {
+                name: string;
+                phone: string;
+                relationship: string;
+                email?: string;
+            }[];
         }
     ) {
         const studentRepo = getScopedRepository(Student);
+        const contactRepo = AppDataSource.getRepository(EmergencyContact);
+        const routeStopRepo = AppDataSource.getRepository(RouteStop);
+
+        // Validation: Minimum 1 emergency contact
+        if (!data.emergencyContacts || data.emergencyContacts.length === 0) {
+            throw new Error('Debe ingresar al menos un contacto de emergencia válido.');
+        }
 
         // Check if RUT already exists in this company
         const existingStudent = await studentRepo.findOne({
@@ -54,21 +68,18 @@ export const studentService = {
             where: { enrollmentNumber }
         });
         if (existingEnrollment) {
-            // If collision, try next number (simple retry logic or just fail)
-            // For simplicity in this iteration, we might fail or suffix. 
-            // Better: Add a timestamp part or retry. 
-            // But let's stick to the simple requirement first. If manual and exists -> Error. 
-            // If auto and exists -> maybe race condition?
             if (data.enrollmentNumber) {
                 throw new Error(`El número de matrícula ${enrollmentNumber} ya existe.`);
             } else {
-                // Initial retry: just add 1 more
                 enrollmentNumber = `${new Date().getFullYear()}-${(Number(enrollmentNumber.split('-')[1]) + 1).toString().padStart(4, '0')}`;
             }
         }
 
+        // Prepare student data without auxiliary fields
+        const { emergencyContacts, routeId, ...studentData } = data;
+
         const student = studentRepo.create({
-            ...data,
+            ...studentData,
             enrollmentNumber,
             status: 'active'
         });
@@ -78,7 +89,34 @@ export const studentService = {
             student.companyId = companyId;
         }
 
-        return await studentRepo.save(student);
+        const savedStudent = await studentRepo.save(student);
+
+        // Save Emergency Contacts
+        if (emergencyContacts && emergencyContacts.length > 0) {
+            const contacts = emergencyContacts.map(c => contactRepo.create({
+                ...c,
+                studentId: savedStudent.id,
+                isActive: true
+            }));
+            await contactRepo.save(contacts);
+        }
+
+        // Assign Route if provided
+        if (routeId) {
+            const newStop = routeStopRepo.create({
+                studentId: savedStudent.id,
+                routeId: routeId,
+                stopName: 'Parada Asignada',
+                address: student.address,
+                stopOrder: 1,
+                latitude: 0,
+                longitude: 0,
+                estimatedTimeFromStartMinutes: 0
+            });
+            await routeStopRepo.save(newStop);
+        }
+
+        return savedStudent;
     },
 
     /**
@@ -204,6 +242,7 @@ export const studentService = {
                 .leftJoinAndSelect('city.region', 'region')
                 .leftJoinAndSelect('student.studentGuardians', 'studentGuardians')
                 .leftJoinAndSelect('studentGuardians.guardian', 'guardian')
+                .leftJoinAndSelect('student.emergencyContacts', 'emergencyContacts')
                 .leftJoinAndSelect('student.routeStops', 'routeStops')
                 .leftJoinAndSelect('routeStops.route', 'route')
                 .where('student.id = :id', { id });
@@ -438,6 +477,14 @@ export const studentService = {
         const contact = await contactRepo.findOne({ where: { id: contactId, studentId } });
         if (!contact) throw new Error('Contacto no encontrado');
 
+        // Check minimum contacts if disabling
+        if (data.isActive === false) {
+            const activeCount = await contactRepo.count({ where: { studentId, isActive: true } });
+            if (activeCount <= 1 && contact.isActive) {
+                throw new Error('El estudiante debe tener al menos un contacto de emergencia activo.');
+            }
+        }
+
         Object.assign(contact, data);
         return await contactRepo.save(contact);
     },
@@ -452,6 +499,13 @@ export const studentService = {
 
         const contact = await contactRepo.findOne({ where: { id: contactId, studentId } });
         if (!contact) throw new Error('Contacto no encontrado');
+
+        // Check minimum contacts
+        const activeCount = await contactRepo.count({ where: { studentId, isActive: true } });
+        // If we are deleting an active contact and it is the last one (or already 0 somehow)
+        if (contact.isActive && activeCount <= 1) {
+            throw new Error('No se puede eliminar el único contacto de emergencia activo.');
+        }
 
         // Soft Delete
         contact.isActive = false;
