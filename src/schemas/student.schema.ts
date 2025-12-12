@@ -59,14 +59,14 @@ export const createStudentSchema = z.object({
     levelId: z.string().uuid('ID de nivel inválido'), // Required
 
     // Optional fields
-    email: z.string().email().optional(),
-    phone: z.string().optional(),
-    photoUrl: z.string().url().optional(),
-    cityId: z.string().uuid().optional(),
-    enrollmentNumber: z.string().optional(), // Optional, auto-generated if missing
+    email: z.string().email().optional().or(z.literal('')),
+    phone: z.string().optional().or(z.literal('')),
+    photoUrl: z.string().url().optional().or(z.literal('')),
+    cityId: z.string().uuid().optional().or(z.literal('')),
+    enrollmentNumber: z.string().optional().or(z.literal('')), // Optional, auto-generated if missing
 
     // Transport
-    routeId: z.string().uuid().optional().nullable(),
+    routeId: z.string().uuid().optional().nullable().or(z.literal('')),
 
     // Emergency Contacts (Required Min 1)
     emergencyContacts: z.array(emergencyContactSchema).min(1, 'Debe ingresar al menos un contacto de emergencia')

@@ -15,6 +15,10 @@ import dashboardRoutes from './routes/dashboard.route';
 import cookieParser from 'cookie-parser';
 import teachersRoutes from './routes/teachers.route';
 import transportRoutes from './routes/transport.routes';
+import medicalRecordRoutes from './routes/medicalRecord.routes';
+
+import medicalIncidentRoutes from './routes/medicalIncident.routes';
+import guardianRoutes from './routes/guardian.routes';
 
 config();
 
@@ -59,6 +63,9 @@ app.use('/api/locations', locationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/teachers', teachersRoutes);
 app.use('/api/routes', transportRoutes);
+app.use('/api/medical_records', medicalRecordRoutes);
+app.use('/api/medical_incidents', medicalIncidentRoutes);
+app.use('/api/guardians', guardianRoutes);
 
 // Static files (Images)
 import path from 'path';
