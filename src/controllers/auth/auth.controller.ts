@@ -133,5 +133,39 @@ export const authController = {
             accessToken: !!req.cookies[COOKIE_CONFIG.accessToken.name],
             refreshToken: !!req.cookies[COOKIE_CONFIG.refreshToken.name]
         });
+    },
+
+    /**
+     * POST /api/auth/forgot-password
+     * Solicitud de recuperación de contraseña
+     */
+    async requestPasswordReset(req: Request, res: Response) {
+        try {
+            const { email } = req.body;
+            const result = await authService.requestPasswordReset(email);
+            return res.json(result);
+        } catch (error: any) {
+            return res.status(400).json({
+                success: false,
+                error: error.message
+            });
+        }
+    },
+
+    /**
+     * POST /api/auth/reset-password
+     * Restablecimiento de contraseña
+     */
+    async resetPassword(req: Request, res: Response) {
+        try {
+            const { token, newPassword } = req.body;
+            const result = await authService.resetPassword(token, newPassword);
+            return res.json(result);
+        } catch (error: any) {
+            return res.status(400).json({
+                success: false,
+                error: error.message
+            });
+        }
     }
 };

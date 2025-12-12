@@ -14,6 +14,10 @@ router.get('/verify', authController.verifyAuth);
 router.post('/invite-guardian', authController.inviteGuardian);
 router.get('/validate-invite/:token', authController.validateInvite);
 
+// Password recovery routes
+router.post('/forgot-password', authController.requestPasswordReset);
+router.post('/reset-password', authController.resetPassword);
+
 // Debug route (only in development)
 if (process.env.NODE_ENV === 'development') {
   router.get('/debug-cookies', authController.debugCookies);

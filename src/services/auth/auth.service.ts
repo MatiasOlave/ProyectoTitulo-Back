@@ -327,5 +327,56 @@ export const authService = {
       companyName: invitation.company.name,
       role: invitation.role.name
     };
+  },
+
+  async requestPasswordReset(email: string) {
+    const user = await userRepository.findOne({ where: { email, isActive: true } });
+
+    // For security, do not reveal if user exists or not, but strictly speaking for this project we might want to throw error if not found to be helpful. 
+    // However, the standard practice is to return success even if email not found (silently fail).
+    // But to follow the pattern of other methods here, I will check.
+    if (!user) {
+      throw new Error('No existe una cuenta activa con este correo electrónico');
+    }
+
+    // Generate token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1); // 1 hour expiration
+
+    user.passwordResetToken = token;
+    user.passwordResetExpires = expiresAt;
+
+    await userRepository.save(user);
+
+    await emailService.sendPasswordResetEmail(user.email, token, user.firstName);
+
+    return { success: true, message: 'Correo de recuperación enviado' };
+  },
+
+  async resetPassword(token: string, newPassword: string) {
+    const user = await userRepository.findOne({
+      where: { passwordResetToken: token }
+    });
+
+    if (!user) {
+      throw new Error('Token inválido o expirado');
+    }
+
+    if (!user.passwordResetExpires || user.passwordResetExpires < new Date()) {
+      throw new Error('El token ha expirado. Por favor solicite uno nuevo.');
+    }
+
+    // Update password
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    user.passwordHash = passwordHash;
+
+    // Clear token
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
+
+    await userRepository.save(user);
+
+    return { success: true, message: 'Contraseña actualizada correctamente' };
   }
 };
