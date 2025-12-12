@@ -1,4 +1,4 @@
-import { ObjectType, Repository, FindManyOptions, FindOneOptions, DeepPartial, SaveOptions } from 'typeorm';
+import { ObjectType, Repository, FindManyOptions, FindOneOptions, DeepPartial, SaveOptions, FindOptionsWhere, UpdateResult } from 'typeorm';
 import { AppDataSource } from '../config/database';
 import { getCompanyId, isIsolationBypassed } from './context';
 
@@ -69,6 +69,14 @@ export class ScopedRepository<T extends { companyId: string }> {
 
     async remove(entity: T): Promise<T> {
         return this.repository.remove(entity);
+    }
+
+    async softDelete(criteria: FindOptionsWhere<T>): Promise<UpdateResult> {
+        const scope = this.getScope();
+        return this.repository.softDelete({
+            ...criteria,
+            ...scope,
+        } as any);
     }
 
     async softRemove(entity: T): Promise<T> {

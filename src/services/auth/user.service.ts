@@ -134,6 +134,9 @@ export const userService = {
             queryBuilder.andWhere('role.code = :roleCode', { roleCode });
         }
 
+        // Filter out soft-deleted users
+        queryBuilder.andWhere('user.deletedAt IS NULL');
+
         // Apply active status filter
         if (isActive !== undefined) {
             queryBuilder.andWhere('user.isActive = :isActive', { isActive });
@@ -269,44 +272,108 @@ export const userService = {
     },
 
     /**
-     * Deactivate user (soft delete)
+     * Delete user (soft delete)
      */
-    async deactivateUser(userId: string, companyId: string) {
+    async deleteUser(userId: string, companyId: string, currentUserId: string) {
         const userRepo = getScopedRepository(User);
+        const roleRepo = getScopedRepository(Role);
 
-        const user = await userRepo.findOne({
-            where: { id: userId }
+        // Prevent self-deletion
+        if (userId === currentUserId) {
+            throw new Error('No puedes eliminar tu propio usuario');
+        }
+
+        const user = await userRepo['repository'].findOne({
+            where: { id: userId, companyId },
+            relations: ['userRoles', 'userRoles.role']
         });
 
         if (!user) {
             throw new Error('Usuario no encontrado');
         }
 
-        if (!user.isActive) {
-            throw new Error('El usuario ya está desactivado');
+        // Check if user is a DIRECTOR
+        const isDirector = user.userRoles.some(
+            (ur: any) => ur.role.code === 'DIRECTOR'
+        );
+
+        if (isDirector) {
+            // Count active DIRECTOR users
+            const directorRole = await roleRepo.findOne({
+                where: { code: 'DIRECTOR' }
+            });
+
+            if (directorRole) {
+                const activeDirectorCount = await userRepo['repository']
+                    .createQueryBuilder('user')
+                    .leftJoin('user.userRoles', 'userRole')
+                    .where('user.companyId = :companyId', { companyId })
+                    .andWhere('userRole.roleId = :roleId', { roleId: directorRole.id })
+                    .andWhere('user.isActive = :isActive', { isActive: true })
+                    .andWhere('user.deletedAt IS NULL')
+                    .getCount();
+
+                if (activeDirectorCount <= 1) {
+                    throw new Error('No se puede eliminar al último director activo del sistema');
+                }
+            }
         }
 
-        user.isActive = false;
-        await userRepo.save(user);
+        // Perform soft delete - this will set deleted_at timestamp
+        await userRepo.softDelete({ id: userId });
 
         return {
             success: true,
-            message: 'Usuario desactivado correctamente'
+            message: 'Usuario eliminado correctamente'
         };
     },
 
     /**
      * Toggle user active status
      */
-    async toggleUserStatus(userId: string, companyId: string) {
+    async toggleUserStatus(userId: string, companyId: string, currentUserId: string) {
         const userRepo = getScopedRepository(User);
+        const roleRepo = getScopedRepository(Role);
 
-        const user = await userRepo.findOne({
-            where: { id: userId }
+        // Prevent self-deactivation
+        if (userId === currentUserId) {
+            throw new Error('No puedes desactivar tu propio usuario');
+        }
+
+        const user = await userRepo['repository'].findOne({
+            where: { id: userId },
+            relations: ['userRoles', 'userRoles.role']
         });
 
         if (!user) {
             throw new Error('Usuario no encontrado');
+        }
+
+        // Check if user is a DIRECTOR and is being deactivated
+        const isDirector = user.userRoles.some(
+            (ur: any) => ur.role.code === 'DIRECTOR'
+        );
+
+        if (isDirector && user.isActive) {
+            // Count active DIRECTOR users
+            const directorRole = await roleRepo.findOne({
+                where: { code: 'DIRECTOR' }
+            });
+
+            if (directorRole) {
+                const activeDirectorCount = await userRepo['repository']
+                    .createQueryBuilder('user')
+                    .leftJoin('user.userRoles', 'userRole')
+                    .where('user.companyId = :companyId', { companyId })
+                    .andWhere('userRole.roleId = :roleId', { roleId: directorRole.id })
+                    .andWhere('user.isActive = :isActive', { isActive: true })
+                    .andWhere('user.deletedAt IS NULL')
+                    .getCount();
+
+                if (activeDirectorCount <= 1) {
+                    throw new Error('No se puede desactivar al último director activo del sistema');
+                }
+            }
         }
 
         user.isActive = !user.isActive;
@@ -339,6 +406,11 @@ export const userService = {
 
         if (!user) {
             throw new Error('Usuario no encontrado');
+        }
+
+        // Prevent self-role change
+        if (userId === assignedById) {
+            throw new Error('No puedes modificar tu propio rol');
         }
 
         // Find the new role

@@ -41,7 +41,7 @@ router.post('/', requireAdminOrDirector, userController.createUser);
 router.get('/', requireAdminOrDirector, userController.listUsers);
 router.get('/:id', requireAdminOrDirector, userController.getUserById);
 router.put('/:id', requireAdminOrDirector, userController.updateUser);
-router.delete('/:id', requireAdminOrDirector, userController.deactivateUser);
+router.delete('/:id', requireAdminOrDirector, userController.deleteUser);
 router.patch('/:id/role', requireAdminOrDirector, userController.changeUserRole);
 router.patch('/:id/toggle-status', requireAdminOrDirector, userController.toggleUserStatus);
 
