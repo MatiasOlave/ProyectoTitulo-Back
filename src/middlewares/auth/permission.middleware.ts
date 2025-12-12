@@ -39,7 +39,15 @@ export const requireRole = (requiredRole: string) => {
       return;
     }
 
-    if (!req.user.roles.includes(requiredRole)) {
+    // Normalize user roles
+    const userRolesNormalized = req.user.roles.map((r: any) => {
+      const roleName = typeof r === 'string' ? r : (r.name || r.code);
+      return roleName ? roleName.toString().trim().toLowerCase() : '';
+    });
+
+    const requiredRoleNormalized = requiredRole.trim().toLowerCase();
+
+    if (!userRolesNormalized.includes(requiredRoleNormalized)) {
       res.status(403).json({
         success: false,
         error: `Rol requerido: ${requiredRole}`
@@ -63,7 +71,17 @@ export const requireAnyRole = (allowedRoles: string[]) => {
       return;
     }
 
-    const hasRole = allowedRoles.some(role => req.user?.roles.includes(role));
+    // Normalize user roles: lowercase and trim
+    // Handle specific cases where user.roles elements might be objects or strings
+    const userRolesNormalized = req.user.roles.map((r: any) => {
+      const roleName = typeof r === 'string' ? r : (r.name || r.code);
+      return roleName ? roleName.toString().trim().toLowerCase() : '';
+    });
+
+    // Normalize allowed roles
+    const allowedRolesNormalized = allowedRoles.map(r => r.trim().toLowerCase());
+
+    const hasRole = allowedRolesNormalized.some(allowed => userRolesNormalized.includes(allowed));
 
     if (!hasRole) {
       res.status(403).json({

@@ -14,6 +14,7 @@ import { locationRoutes } from './routes/location.route';
 import dashboardRoutes from './routes/dashboard.route';
 import cookieParser from 'cookie-parser';
 import teachersRoutes from './routes/teachers.route';
+import transportRoutes from './routes/transport.routes';
 
 config();
 
@@ -57,6 +58,11 @@ app.use('/api/levels', levelRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/teachers', teachersRoutes);
+app.use('/api/routes', transportRoutes);
+
+// Static files (Images)
+import path from 'path';
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Error handling basic
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

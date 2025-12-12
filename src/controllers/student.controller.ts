@@ -7,7 +7,7 @@ export const studentController = {
     async createStudent(req: AuthRequest, res: Response) {
         try {
             const validatedData = createStudentSchema.parse(req.body);
-            const student = await studentService.createStudent(validatedData);
+            const student = await studentService.createStudent(req.companyId!, validatedData);
             return res.status(201).json({
                 success: true,
                 message: 'Estudiante matriculado correctamente',
@@ -34,8 +34,33 @@ export const studentController = {
     async getStudentById(req: AuthRequest, res: Response) {
         try {
             const { id } = req.params;
-            const student = await studentService.getStudentById(id);
+            const student = await studentService.getStudentById(id, req.companyId);
             return res.json({ success: true, student });
+        } catch (error: any) {
+            return res.status(500).json({
+                success: false,
+                message: "¡DEBUG! Error interno en el servidor:",
+                error: error.message,
+                detail: error.detail || error.stack
+            });
+        }
+    },
+
+    async getStudentProfile(req: AuthRequest, res: Response) {
+        try {
+            const { id } = req.params;
+            const profile = await studentService.getStudentProfile(id);
+            return res.json({ success: true, profile });
+        } catch (error: any) {
+            return res.status(404).json({ success: false, error: error.message });
+        }
+    },
+
+    async getStudentGuardians(req: AuthRequest, res: Response) {
+        try {
+            const { id } = req.params;
+            const data = await studentService.getStudentGuardians(id);
+            return res.json({ success: true, data });
         } catch (error: any) {
             return res.status(404).json({ success: false, error: error.message });
         }
@@ -58,8 +83,73 @@ export const studentController = {
     async deleteStudent(req: AuthRequest, res: Response) {
         try {
             const { id } = req.params;
-            const result = await studentService.deleteStudent(id);
+            const { retirementDate, retirementReason } = req.body; // Expect body for soft delete
+
+            let result;
+            if (retirementDate && retirementReason) {
+                result = await studentService.deleteStudent(id, { date: retirementDate, reason: retirementReason });
+            } else {
+                // Fallback or just call without data (hard delete)
+                result = await studentService.deleteStudent(id);
+            }
             return res.json(result);
+        } catch (error: any) {
+            return res.status(400).json({ success: false, error: error.message });
+        }
+    },
+
+    // Quick Actions
+    async recordAttendance(req: AuthRequest, res: Response) {
+        // Stub
+        return res.json({ success: true, message: 'Asistencia registrada (Stub)' });
+    },
+
+    async recordMedicalIncident(req: AuthRequest, res: Response) {
+        // Stub
+        return res.json({ success: true, message: 'Incidente médico registrado (Stub)' });
+    },
+
+    async addObservation(req: AuthRequest, res: Response) {
+        // Stub
+        return res.json({ success: true, message: 'Observación agregada (Stub)' });
+    },
+
+    async getClassBook(req: AuthRequest, res: Response) {
+        // Stub
+        return res.json({ success: true, message: 'Libro de clases (Stub)' });
+    },
+
+    async getMedicalRecord(req: AuthRequest, res: Response) {
+        // Stub
+        return res.json({ success: true, message: 'Ficha médica (Stub)' });
+    },
+
+    // Emergency Contacts
+    async addContact(req: AuthRequest, res: Response) {
+        try {
+            const { id } = req.params;
+            const result = await studentService.addEmergencyContact(id, req.body);
+            return res.json(result);
+        } catch (error: any) {
+            return res.status(400).json({ success: false, error: error.message });
+        }
+    },
+
+    async updateContact(req: AuthRequest, res: Response) {
+        try {
+            const { id, contactId } = req.params;
+            const result = await studentService.updateEmergencyContact(id, contactId, req.body);
+            return res.json(result);
+        } catch (error: any) {
+            return res.status(400).json({ success: false, error: error.message });
+        }
+    },
+
+    async deleteContact(req: AuthRequest, res: Response) {
+        try {
+            const { id, contactId } = req.params;
+            await studentService.deleteEmergencyContact(id, contactId);
+            return res.json({ success: true, message: 'Contacto desactivado' });
         } catch (error: any) {
             return res.status(400).json({ success: false, error: error.message });
         }
