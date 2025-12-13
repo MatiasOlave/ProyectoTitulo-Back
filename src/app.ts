@@ -19,6 +19,7 @@ import medicalRecordRoutes from './routes/medicalRecord.routes';
 
 import medicalIncidentRoutes from './routes/medicalIncident.routes';
 import guardianRoutes from './routes/guardian.routes';
+import driverRoutes from './routes/driver.routes';
 
 config();
 
@@ -66,6 +67,7 @@ app.use('/api/routes', transportRoutes);
 app.use('/api/medical_records', medicalRecordRoutes);
 app.use('/api/medical_incidents', medicalIncidentRoutes);
 app.use('/api/guardians', guardianRoutes);
+app.use('/api/drivers', driverRoutes);
 
 // Static files (Images)
 import path from 'path';
@@ -83,6 +85,11 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 const startServer = async () => {
   await initializeDatabase();
+
+  // Start Background Tasks
+  const { startDocumentMonitor } = require('./tasks/document-monitor.task');
+  startDocumentMonitor();
+
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });

@@ -44,9 +44,7 @@ export const userService = {
         }
 
         // Find the role
-        const role = await roleRepo.findOne({
-            where: { code: roleCode }
-        });
+        const role = await roleRepo.findOne({ where: { code: roleCode } });
 
         if (!role) {
             throw new Error('Rol no encontrado');
