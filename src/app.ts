@@ -20,6 +20,7 @@ import medicalRecordRoutes from './routes/medicalRecord.routes';
 import medicalIncidentRoutes from './routes/medicalIncident.routes';
 import guardianRoutes from './routes/guardian.routes';
 import driverRoutes from './routes/driver.routes';
+import classBookRoutes from './routes/classBook.route';
 
 config();
 
@@ -53,6 +54,8 @@ app.get('/', (_req: express.Request, res: express.Response) => {
   });
 });
 
+import planningRoutes from './routes/planning.route';
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/auth/company', authCompanyRoutes);
@@ -68,6 +71,8 @@ app.use('/api/medical_records', medicalRecordRoutes);
 app.use('/api/medical_incidents', medicalIncidentRoutes);
 app.use('/api/guardians', guardianRoutes);
 app.use('/api/drivers', driverRoutes);
+app.use('/api/class-book', classBookRoutes);
+app.use('/api/plannings', planningRoutes);
 
 // Static files (Images)
 import path from 'path';
