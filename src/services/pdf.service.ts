@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import { Student } from '../entities/students/student.entity';
 import { MedicalInfo } from '../entities/students/medical-info.entity';
 import { MedicalIncident } from '../entities/medical/medical-incident.entity';
+import { ClassBookEntry } from '../entities/academic/class-book-entry.entity';
 
 export const pdfService = {
     generateFichaReport: (student: Student, record: MedicalInfo): Promise<Buffer> => {
@@ -101,6 +102,49 @@ export const pdfService = {
                     doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke(); // Separator line
                     doc.moveDown();
                 });
+            }
+
+            doc.end();
+        });
+    },
+
+    generateClassBookSummary: (entry: ClassBookEntry): Promise<Buffer> => {
+        return new Promise((resolve, reject) => {
+            const doc = new PDFDocument();
+            const buffers: Buffer[] = [];
+
+            doc.on('data', buffers.push.bind(buffers));
+            doc.on('end', () => resolve(Buffer.concat(buffers)));
+
+            doc.fontSize(18).text('Libro de Clases Digital', { align: 'center' });
+            doc.moveDown();
+
+            doc.fontSize(12).text(`Fecha: ${new Date(entry.date).toLocaleDateString()}`);
+            doc.text(`Nivel: ${entry.level?.name || 'N/A'}`);
+            doc.text(`Profesor: ${entry.teacher?.firstName} ${entry.teacher?.lastName}`);
+            doc.moveDown();
+
+            doc.fontSize(14).text('Resumen de Asistencia', { underline: true });
+            doc.fontSize(12).text(`Total Estudiantes: ${entry.totalStudents}`);
+            doc.text(`Presentes: ${entry.studentsPresent}`);
+            doc.text(`Ausentes: ${entry.studentsAbsent}`);
+            doc.text(`Porcentaje: ${entry.attendancePercentage}%`);
+            doc.moveDown();
+
+            doc.fontSize(14).text('Detalles Pedagógicos', { underline: true });
+            doc.fontSize(12).text('Actividades Realizadas:');
+            doc.text(entry.activitiesPerformed);
+            doc.moveDown(0.5);
+
+            if (entry.teachingMethodology) {
+                doc.text('Metodología:');
+                doc.text(entry.teachingMethodology);
+                doc.moveDown(0.5);
+            }
+
+            if (entry.resourcesUsed) {
+                doc.text('Recursos Utilizados:');
+                doc.text(entry.resourcesUsed);
             }
 
             doc.end();
