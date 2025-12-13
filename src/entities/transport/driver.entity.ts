@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany } from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, ValueTransformer } from "typeorm";
 import { DriverDocument } from "./driver-document.entity";
 import { DriverDocumentAlert } from "./driver-document-alert.entity";
 import { VehicleInspection } from "./vehicle-inspection.entity";
@@ -9,6 +9,22 @@ import { BaseEntity } from "../base.entity";
 import { Company } from "../companies/company.entity";
 import { User } from "../auth/user.entity";
 import { City } from "../shared/city.entity";
+
+// Transformer to handle date columns as pure YYYY-MM-DD strings
+export const dateTransformer: ValueTransformer = {
+    to: (value: any) => {
+        if (!value) return null;
+        if (value instanceof Date) return value.toISOString().split('T')[0];
+        return value; // Assume string YYYY-MM-DD
+    },
+    from: (value: any) => {
+        if (!value) return null;
+        // Return as string YYYY-MM-DD directly, do NOT convert to Date
+        // If the driver returns a Date object, convert to string safely
+        if (value instanceof Date) return value.toISOString().split('T')[0];
+        return value; // Should be string from Postgres
+    }
+};
 
 @Entity('drivers')
 export class Driver extends BaseEntity {
@@ -35,8 +51,8 @@ export class Driver extends BaseEntity {
     @Column({ type: 'varchar', length: 50 })
     rut: string
 
-    @Column({ name: 'birth_date', type: 'date' })
-    birthDate: Date;
+    @Column({ name: 'birth_date', type: 'date', transformer: dateTransformer })
+    birthDate: string;
 
     @Column({ type: 'varchar', length: 50 })
     phone: string
@@ -75,11 +91,11 @@ export class Driver extends BaseEntity {
     @Column({ name: 'license_type', type: 'varchar', length: 50 })
     licenseType: string
 
-    @Column({ name: 'license_issue_date', type: 'date' })
-    licenseIssueDate: Date
+    @Column({ name: 'license_issue_date', type: 'date', transformer: dateTransformer })
+    licenseIssueDate: string
 
-    @Column({ name: 'license_expiration_date', type: 'date' })
-    licenseExpirationDate: Date
+    @Column({ name: 'license_expiration_date', type: 'date', transformer: dateTransformer })
+    licenseExpirationDate: string
 
     @Column({ name: 'license_restriction', type: 'text', nullable: true })
     licenseRestrictions: string
@@ -90,11 +106,11 @@ export class Driver extends BaseEntity {
     @Column({ name: 'previous_experience', type: 'text', nullable: true })
     previousExperience: string
 
-    @Column({ name: 'last_medical_exam_date', type: 'date', nullable: true })
-    lastMedicalExamDate: Date
+    @Column({ name: 'last_medical_exam_date', type: 'date', nullable: true, transformer: dateTransformer })
+    lastMedicalExamDate: string
 
-    @Column({ name: 'next_medical_exam_date', type: 'date', nullable: true })
-    nextMedicalExamDate: Date
+    @Column({ name: 'next_medical_exam_date', type: 'date', nullable: true, transformer: dateTransformer })
+    nextMedicalExamDate: string
 
     @Column({ name: 'medical_restriction', type: 'text', nullable: true })
     medicalRestrictions: string
@@ -105,17 +121,17 @@ export class Driver extends BaseEntity {
     @Column({ name: 'suspension_reason', type: 'text', nullable: true })
     suspensionReason: string
 
-    @Column({ name: 'suspension_start_date', type: 'date', nullable: true })
-    suspensionStartDate: Date
+    @Column({ name: 'suspension_start_date', type: 'date', nullable: true, transformer: dateTransformer })
+    suspensionStartDate: string
 
-    @Column({ name: 'suspension_end_date', type: 'date', nullable: true })
-    suspensionEndDate: Date
+    @Column({ name: 'suspension_end_date', type: 'date', nullable: true, transformer: dateTransformer })
+    suspensionEndDate: string
 
-    @Column({ name: 'hire_date', type: 'date' })
-    hire_date: Date
+    @Column({ name: 'hire_date', type: 'date', transformer: dateTransformer })
+    hire_date: string
 
-    @Column({ name: 'termination_date', type: 'date', nullable: true })
-    termination_date: Date
+    @Column({ name: 'termination_date', type: 'date', nullable: true, transformer: dateTransformer })
+    termination_date: string
 
     @OneToMany(() => DriverDocument, document => document.driver)
     documents: DriverDocument[];

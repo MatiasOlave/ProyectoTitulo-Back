@@ -7,7 +7,7 @@ import { User } from '../../entities/auth/user.entity';
 import { UserRole } from '../../entities/auth/user-role.entity';
 import { RolePermission } from '../../entities/auth/role-permission.entity';
 import { JwtPayload } from '../../interfaces/auth/jwt.interface';
-import { In } from 'typeorm';
+import { In, Not } from 'typeorm';
 import { COOKIE_CONFIG } from '../../config/jwt.config';
 import { Invitation } from '../../entities/auth/invitation.entity';
 import { Student } from '../../entities/students/student.entity';
