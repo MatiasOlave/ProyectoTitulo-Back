@@ -9,15 +9,9 @@ export class PlanningReview extends BaseEntity {
     @JoinColumn({ name: 'planning_id' })
     planning: ActivityPlanning;
 
-    @Column({ name: 'planning_id' })
-    planningId: string;
-
     @ManyToOne(() => User, user => user.planningReviews)
     @JoinColumn({ name: 'reviewer_id' })
     reviewer: User;
-
-    @Column({ name: 'reviewer_id' })
-    reviewerId: string;
 
     @Column({ type: 'varchar', length: 50 })
     action: string;
