@@ -21,6 +21,9 @@ import medicalIncidentRoutes from './routes/medicalIncident.routes';
 import guardianRoutes from './routes/guardian.routes';
 import driverRoutes from './routes/driver.routes';
 import classBookRoutes from './routes/classBook.route';
+import vehicleRoutes from './routes/vehicle.routes';
+import maintenanceRoutes from './routes/maintenance.routes';
+import inspectionRoutes from './routes/inspection.routes';
 
 config();
 
@@ -77,6 +80,9 @@ app.use('/api/medical_records', medicalRecordRoutes);
 app.use('/api/medical_incidents', medicalIncidentRoutes);
 app.use('/api/guardians', guardianRoutes);
 app.use('/api/drivers', driverRoutes);
+app.use('/api/vehicles', vehicleRoutes);
+app.use('/api/maintenance', maintenanceRoutes);
+app.use('/api/inspections', inspectionRoutes);
 app.use('/api/class-book', classBookRoutes);
 app.use('/api/plannings', planningRoutes);
 
