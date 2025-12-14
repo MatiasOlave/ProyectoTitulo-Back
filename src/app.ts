@@ -21,6 +21,7 @@ import medicalIncidentRoutes from './routes/medicalIncident.routes';
 import guardianRoutes from './routes/guardian.routes';
 import driverRoutes from './routes/driver.routes';
 import classBookRoutes from './routes/classBook.route';
+import attendanceRoutes from './routes/attendance.routes';
 
 config();
 
@@ -79,6 +80,7 @@ app.use('/api/guardians', guardianRoutes);
 app.use('/api/drivers', driverRoutes);
 app.use('/api/class-book', classBookRoutes);
 app.use('/api/plannings', planningRoutes);
+app.use('/api/attendance', attendanceRoutes);
 
 // Static files (Images)
 import path from 'path';
