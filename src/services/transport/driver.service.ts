@@ -88,7 +88,7 @@ export class DriverService {
             data.lastName,
             data.rut,
             data.phone,
-            'DRIVER', // Role Code
+            ['DRIVER'], // Role Code (must be an array)
             createdById
         );
 
