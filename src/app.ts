@@ -19,6 +19,12 @@ import medicalRecordRoutes from './routes/medicalRecord.routes';
 
 import medicalIncidentRoutes from './routes/medicalIncident.routes';
 import guardianRoutes from './routes/students/guardian.routes';
+import driverRoutes from './routes/driver.routes';
+import classBookRoutes from './routes/classBook.route';
+import attendanceRoutes from './routes/attendance.routes';
+import vehicleRoutes from './routes/vehicle.routes';
+import maintenanceRoutes from './routes/maintenance.routes';
+import inspectionRoutes from './routes/inspection.routes';
 
 config();
 
@@ -29,12 +35,18 @@ const PORT = process.env.PORT || 3000;
 app.use(cookieParser());
 app.use(helmet());
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: ['http://localhost:3000', 'http://localhost:3001'],
   credentials: true
 }));
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Debug Middleware
+app.use((req, res, next) => {
+  console.log(`[REQUEST] ${req.method} ${req.url} (Port: ${process.env.PORT})`);
+  next();
+});
 
 // Rutas de salud
 app.get('/health', (_req: express.Request, res: express.Response) => {
@@ -52,6 +64,8 @@ app.get('/', (_req: express.Request, res: express.Response) => {
   });
 });
 
+import planningRoutes from './routes/planning.route';
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/auth/company', authCompanyRoutes);
@@ -66,6 +80,15 @@ app.use('/api/routes', transportRoutes);
 app.use('/api/medical_records', medicalRecordRoutes);
 app.use('/api/medical_incidents', medicalIncidentRoutes);
 app.use('/api/guardians', guardianRoutes);
+app.use('/api/drivers', driverRoutes);
+app.use('/api/vehicles', vehicleRoutes);
+app.use('/api/maintenance', maintenanceRoutes);
+app.use('/api/inspections', inspectionRoutes);
+app.use('/api/class-book', classBookRoutes);
+app.use('/api/plannings', planningRoutes);
+import companyRoutes from './routes/company.route';
+app.use('/api/companies', companyRoutes);
+app.use('/api/attendance', attendanceRoutes);
 
 // Static files (Images)
 import path from 'path';
@@ -83,6 +106,11 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 const startServer = async () => {
   await initializeDatabase();
+
+  // Start Background Tasks
+  const { startDocumentMonitor } = require('./tasks/document-monitor.task');
+  startDocumentMonitor();
+
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });

@@ -22,7 +22,7 @@ export const COOKIE_CONFIG = {
     options: {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict' as const,
+      sameSite: 'lax' as const,
       maxAge: 24 * 60 * 60 * 1000, // 24 horas en milisegundos
       path: '/',
     }
@@ -32,7 +32,7 @@ export const COOKIE_CONFIG = {
     options: {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict' as const,
+      sameSite: 'lax' as const,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias en milisegundos
       path: '/api/auth/refresh-token',
     }

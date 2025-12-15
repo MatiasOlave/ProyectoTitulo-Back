@@ -7,6 +7,8 @@ export interface JwtPayload {
   email: string;
   roles: string[];
   permissions: string[];
+  sub?: string; // Standard JWT uses sub for ID
+  id?: string; // Custom/Legacy might use id
 }
 
 export interface AuthRequest extends Request {
