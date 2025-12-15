@@ -8,10 +8,12 @@ const router = Router();
 
 // Endpoint for listing medical incidents (Point 9)
 // GET /api/medical_incidents
+// Endpoint for listing medical incidents (Point 9)
+// GET /api/medical_incidents
 router.get(
     '/',
     authenticate,
-    requireAnyRole(['ADMIN', 'DIRECTOR', 'TEACHER']),
+    requireAnyRole(['ADMIN', 'DIRECTOR', 'SUPERVISOR', 'TEACHER', 'PROFESOR']),
     medicalIncidentController.getMedicalIncidents
 );
 
@@ -20,7 +22,7 @@ router.get(
 router.post(
     '/:studentId',
     authenticate,
-    requireAnyRole(['ADMIN', 'DIRECTOR', 'TEACHER']),
+    requireAnyRole(['ADMIN', 'DIRECTOR', 'SUPERVISOR', 'TEACHER', 'PROFESOR']),
     uploadMiddleware,
     medicalIncidentController.createMedicalIncident
 );
@@ -30,7 +32,7 @@ router.post(
 router.put(
     '/:incidentId/follow_up',
     authenticate,
-    requireAnyRole(['ADMIN', 'DIRECTOR']),
+    requireAnyRole(['ADMIN', 'DIRECTOR', 'SUPERVISOR', 'TEACHER', 'PROFESOR']),
     medicalIncidentController.resolveIncident
 );
 

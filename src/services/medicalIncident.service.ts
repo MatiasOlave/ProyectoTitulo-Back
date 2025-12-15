@@ -84,11 +84,21 @@ export const medicalIncidentService = {
             studentId,
             reportedById: userId,
             incidentDate: data.incidentDate ? new Date(data.incidentDate) : new Date(),
-            photos: photoPaths, // JSON column
-            documents: docPaths // JSON column
-        });
+            requiredMedicalAttention: data.requiredMedicalAttention === 'true' || data.requiredMedicalAttention === true,
+            followUpRequired: data.followUpRequired === 'true' || data.followUpRequired === true,
+            photos: photoPaths,
+            documents: docPaths
+        }) as unknown as MedicalIncident | MedicalIncident[];
 
-        const savedIncident = await incidentRepo.save(incident);
+        // Handle potential array return from create
+        const incidentToSave = Array.isArray(incident) ? incident[0] : incident;
+
+        // Auto-Resolve if no follow-up required
+        if (!incidentToSave.followUpRequired) {
+            incidentToSave.resolvedAt = new Date();
+        }
+
+        const savedIncident = await incidentRepo.save(incidentToSave);
 
         // 4. Automatic Notification Logic (Point 7)
         try {

@@ -66,6 +66,16 @@ export const studentController = {
         }
     },
 
+    async getStudentObservations(req: AuthRequest, res: Response) {
+        try {
+            const { id } = req.params;
+            const observations = await studentService.getStudentObservations(id);
+            return res.json({ success: true, observations });
+        } catch (error: any) {
+            return res.status(500).json({ success: false, error: 'Error al obtener observaciones', details: error.message });
+        }
+    },
+
     async updateStudent(req: AuthRequest, res: Response) {
         try {
             const { id } = req.params;
@@ -110,8 +120,14 @@ export const studentController = {
     },
 
     async addObservation(req: AuthRequest, res: Response) {
-        // Stub
-        return res.json({ success: true, message: 'Observación agregada (Stub)' });
+        try {
+            const { id } = req.params;
+            const observation = await studentService.addObservation(req.user?.id!, id, req.body);
+            return res.json({ success: true, observation });
+        } catch (error: any) {
+            console.error('Error adding observation:', error);
+            return res.status(400).json({ success: false, error: error.message });
+        }
     },
 
     async getClassBook(req: AuthRequest, res: Response) {
@@ -122,6 +138,26 @@ export const studentController = {
     async getMedicalRecord(req: AuthRequest, res: Response) {
         // Stub
         return res.json({ success: true, message: 'Ficha médica (Stub)' });
+    },
+
+    async downloadMedicalPdf(req: AuthRequest, res: Response) {
+        try {
+            const { id } = req.params;
+            const doc = await studentService.generateMedicalPdf(id);
+
+            const filename = `ficha-medica-${id}.pdf`;
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+            doc.pipe(res);
+            doc.end();
+        } catch (error: any) {
+            console.error('Error generating PDF:', error);
+            // Handle error (cannot enable json response if headers sent, but usually safe here before pipe)
+            if (!res.headersSent) {
+                res.status(500).json({ success: false, error: 'Error al generar PDF' });
+            }
+        }
     },
 
     // Emergency Contacts

@@ -26,6 +26,7 @@ export const dashboardService = {
             case 'GUARDIAN':
                 return await this.getGuardianData(user, companyId);
             case 'DRIVER':
+            case 'CONDUCTOR':
                 return await this.getDriverData(user, companyId);
             case 'ADMIN':
                 return await this.getAdminData(companyId);

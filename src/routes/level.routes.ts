@@ -11,7 +11,7 @@ router.use(authMiddleware);
 router.use(companyContextMiddleware);
 
 const WRITE_ROLES = ['ADMIN', 'DIRECTOR'];
-const READ_ROLES = ['ADMIN', 'DIRECTOR', 'TEACHER', 'PROFESOR', 'DRIVER'];
+const READ_ROLES = ['ADMIN', 'DIRECTOR', 'TEACHER', 'PROFESOR'];
 
 router.get('/', requireAnyRole(READ_ROLES), levelController.listLevels);
 router.post('/', requireAnyRole(WRITE_ROLES), levelController.createLevel);
