@@ -34,7 +34,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cookieParser());
 app.use(helmet());
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: ['http://localhost:3000', 'http://localhost:3001'],
   credentials: true
 }));
 app.use(morgan('combined'));
@@ -85,6 +85,8 @@ app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/inspections', inspectionRoutes);
 app.use('/api/class-book', classBookRoutes);
 app.use('/api/plannings', planningRoutes);
+import companyRoutes from './routes/company.route';
+app.use('/api/companies', companyRoutes);
 
 // Static files (Images)
 import path from 'path';
