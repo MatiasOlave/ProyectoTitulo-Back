@@ -41,7 +41,7 @@ export const authService = {
     }
 
     const userRoles = await userRoleRepository.find({
-      where: { userId: user.id },
+      where: { user: { id: user.id } },
       relations: ['role']
     });
 
@@ -129,7 +129,7 @@ export const authService = {
 
       // Regenerar tokens
       const userRoles = await userRoleRepository.find({
-        where: { userId: user.id },
+        where: { user: { id: user.id } },
         relations: ['role']
       });
 
@@ -205,7 +205,7 @@ export const authService = {
       }
 
       const userRoles = await userRoleRepository.find({
-        where: { userId: user.id },
+        where: { user: { id: user.id } },
         relations: ['role']
       });
 

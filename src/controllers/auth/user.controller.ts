@@ -26,7 +26,7 @@ export const userController = {
                 validatedData.lastName,
                 validatedData.rut,
                 validatedData.phone,
-                validatedData.roleCode,
+                validatedData.roleCodes,
                 req.user!.userId,
                 validatedData.avatarUrl
             );
@@ -122,7 +122,8 @@ export const userController = {
             const result = await userService.updateUser(
                 id,
                 req.companyId!,
-                validatedData
+                validatedData,
+                req.user?.userId // Pass current user ID as assignedById
             );
 
             return res.json({

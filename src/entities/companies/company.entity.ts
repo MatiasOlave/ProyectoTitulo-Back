@@ -20,6 +20,7 @@ import { DriverDocumentAlert } from "../transport/driver-document-alert.entity";
 import { Route } from "../transport/route.entity";
 import { RolePermission } from "../auth/role-permission.entity";
 import { UserRole } from "../auth/user-role.entity";
+import { StudentGuardian } from "../students/student-guardian.entity";
 
 @Entity('companies')
 export class Company extends BaseEntity {
@@ -72,6 +73,9 @@ export class Company extends BaseEntity {
 
   @OneToMany(() => Student, student => student.company)
   students: Student[]
+
+  @OneToMany(() => StudentGuardian, studentGuardian => studentGuardian.company)
+  studentGuardians: StudentGuardian[]
 
   @OneToMany(() => Level, level => level.company)
   levels: Level[]

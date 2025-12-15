@@ -1,5 +1,6 @@
 // src/services/auth/user.service.ts
 import bcrypt from 'bcryptjs';
+import { In } from 'typeorm';
 import { getScopedRepository } from '../../utils/scoped-repository';
 import { User } from '../../entities/auth/user.entity';
 import { Role } from '../../entities/auth/role.entity';
@@ -17,7 +18,7 @@ export const userService = {
         lastName: string,
         rut: string,
         phone: string,
-        roleCode: string,
+        roleCodes: string[],
         createdById: string,
         avatarUrl?: string
     ) {
@@ -43,11 +44,13 @@ export const userService = {
             throw new Error('El RUT ya está registrado en esta empresa');
         }
 
-        // Find the role
-        const role = await roleRepo.findOne({ where: { code: roleCode } });
+        // Find all roles using the In operator
+        const roles = await roleRepo.find({
+            where: { code: In(roleCodes) }
+        });
 
-        if (!role) {
-            throw new Error('Rol no encontrado');
+        if (roles.length !== roleCodes.length) {
+            throw new Error('Uno o más roles no fueron encontrados');
         }
 
         // Hash password
@@ -68,15 +71,27 @@ export const userService = {
 
         await userRepo.save(user);
 
-        // Assign role
-        const userRole = userRoleRepo.create({
-            userId: user.id,
-            roleId: role.id,
-            assignedById: createdById,
-            assignedAt: new Date()
+        // Assign all roles
+        const userRoles = roles.map(role => {
+            const userRole = new UserRole();
+            // Assign Relations
+            userRole.user = user;
+            userRole.role = role;
+            // Assign IDs explicitly to ensure persistence
+            userRole.userId = user.id;
+            userRole.roleId = role.id;
+            userRole.companyId = user.companyId;
+            userRole.assignedById = createdById;
+
+            userRole.assignedAt = new Date();
+
+            // Still good practice to set company relation if possible, but ID is critical now
+            // userRole.company = ... (we don't have company object easily, but ID is enough now)
+
+            return userRole;
         });
 
-        await userRoleRepo.save(userRole);
+        await userRoleRepo['repository'].save(userRoles);
 
         return {
             id: user.id,
@@ -87,11 +102,11 @@ export const userService = {
             phone: user.phone,
             avatarUrl: user.avatarUrl,
             isActive: user.isActive,
-            role: {
+            roles: roles.map(role => ({
                 id: role.id,
                 name: role.name,
                 code: role.code
-            }
+            }))
         };
     },
 
@@ -230,17 +245,24 @@ export const userService = {
             rut?: string;
             phone?: string;
             avatarUrl?: string | null;
-        }
+            roleCodes?: string[];
+        },
+        assignedById?: string
     ) {
         const userRepo = getScopedRepository(User);
+        const roleRepo = getScopedRepository(Role);
+        const userRoleRepo = getScopedRepository(UserRole);
 
-        const user = await userRepo.findOne({
-            where: { id: userId }
+        const user = await userRepo['repository'].findOne({
+            where: { id: userId, companyId },
+            relations: ['userRoles']
         });
 
         if (!user) {
             throw new Error('Usuario no encontrado');
         }
+
+        // ... (RUT validation code remains the same)
 
         // If updating RUT, check it's not already in use
         if (updates.rut && updates.rut !== user.rut) {
@@ -253,9 +275,65 @@ export const userService = {
             }
         }
 
-        // Apply updates
-        Object.assign(user, updates);
-        await userRepo.save(user);
+        // Handle role updates if provided
+        let updatedRoles = null;
+        if (updates.roleCodes && updates.roleCodes.length > 0) {
+            // Find all new roles
+            const roles = await roleRepo.find({
+                where: { code: In(updates.roleCodes) }
+            });
+
+            if (roles.length !== updates.roleCodes.length) {
+                throw new Error('Uno o más roles no fueron encontrados');
+            }
+
+            // Remove existing roles using QueryBuilder to avoid constraint issues
+            if (user.userRoles.length > 0) {
+                await userRoleRepo['repository']
+                    .createQueryBuilder()
+                    .delete()
+                    .from(UserRole)
+                    .where('userId = :userId', { userId: user.id })
+                    .execute();
+            }
+
+            // Assign new roles
+            // We use the 'user' relation explicitly to ensure TypeORM maps the foreign key correctly
+            const newUserRoles = roles.map(role => {
+                const userRole = new UserRole();
+                userRole.user = user;
+                userRole.role = role;
+
+                // Explicitly set IDs
+                userRole.userId = user.id;
+                userRole.roleId = role.id;
+                userRole.companyId = companyId;
+                userRole.assignedById = assignedById || userId;
+
+                userRole.assignedAt = new Date();
+
+                return userRole;
+            });
+
+            await userRoleRepo['repository'].save(newUserRoles);
+
+            updatedRoles = roles.map(role => ({
+                id: role.id,
+                name: role.name,
+                code: role.code
+            }));
+        }
+
+        // Apply basic user updates (excluding roleCodes)
+        const { roleCodes, ...userUpdates } = updates;
+        Object.assign(user, userUpdates);
+
+        // Use update() instead of save() to avoid TypeORM trying to manage relations 
+        // (which causes "Column user_id cannot be null" error due to 'delete' cascade logic conflicting with manual role management)
+        await userRepo['repository'].update(user.id, {
+            ...userUpdates,
+            updatedAt: new Date()
+        });
 
         return {
             id: user.id,
@@ -265,7 +343,8 @@ export const userService = {
             rut: user.rut,
             phone: user.phone,
             avatarUrl: user.avatarUrl,
-            isActive: user.isActive
+            isActive: user.isActive,
+            ...(updatedRoles && { roles: updatedRoles })
         };
     },
 
@@ -275,6 +354,7 @@ export const userService = {
     async deleteUser(userId: string, companyId: string, currentUserId: string) {
         const userRepo = getScopedRepository(User);
         const roleRepo = getScopedRepository(Role);
+        const userRoleRepo = getScopedRepository(UserRole);
 
         // Prevent self-deletion
         if (userId === currentUserId) {
@@ -316,6 +396,9 @@ export const userService = {
                 }
             }
         }
+
+        // Perform soft delete on user roles
+        await userRoleRepo.softDelete({ userId: userId });
 
         // Perform soft delete - this will set deleted_at timestamp
         await userRepo.softDelete({ id: userId });
@@ -426,12 +509,17 @@ export const userService = {
         }
 
         // Assign new role
-        const userRole = userRoleRepo.create({
-            userId: user.id,
-            roleId: newRole.id,
-            assignedById,
-            assignedAt: new Date()
-        });
+        const userRole = new UserRole();
+        userRole.user = user;
+        userRole.role = newRole;
+
+        // Explicitly set IDs
+        userRole.userId = user.id;
+        userRole.roleId = newRole.id;
+        userRole.companyId = companyId;
+        userRole.assignedById = assignedById;
+
+        userRole.assignedAt = new Date();
 
         await userRoleRepo.save(userRole);
 

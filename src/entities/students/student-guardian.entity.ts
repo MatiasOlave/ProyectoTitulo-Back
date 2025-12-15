@@ -3,9 +3,17 @@ import { Student } from './student.entity';
 import { Guardian } from './guardian.entity';
 import { BaseEntity } from '../base.entity';
 import { User } from '../auth/user.entity';
+import { Company } from '../companies/company.entity';
 
 @Entity('student_guardians')
 export class StudentGuardian extends BaseEntity {
+    @ManyToOne(() => Company, company => company.studentGuardians)
+    @JoinColumn({ name: 'company_id' })
+    company: Company;
+
+    @Column({ name: 'company_id' })
+    companyId: string;
+
     @ManyToOne(() => Student, student => student.studentGuardians)
     @JoinColumn({ name: 'student_id' })
     student: Student;
