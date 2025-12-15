@@ -48,11 +48,18 @@ export class VehicleController {
         try {
             const { search, status, capacity, driverId, routeId, alerts } = req.query;
 
+            const user = (req as any).user;
+            const roles = user?.roles?.map((r: any) => (typeof r === 'string' ? r : r.code).toUpperCase()) || [];
+
+            // Check if user is strictly a Driver (no Management roles)
+            const isDriver = roles.includes('CONDUCTOR') || roles.includes('DRIVER');
+            const isManagement = roles.some((r: string) => ['ADMIN', 'DIRECTOR', 'ENCARGADO_TRANSPORTE', 'SUPERVISOR'].includes(r));
+
             const filters = {
                 search: search as string,
                 status: status as string,
                 capacity: capacity ? parseInt(capacity as string) : undefined,
-                driverId: driverId as string,
+                driverId: (!isManagement && isDriver && user?.id) ? user.id : (driverId as string), // Force own ID if Driver
                 routeId: routeId as string,
                 alerts: alerts === 'true'
             };

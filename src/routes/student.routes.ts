@@ -12,25 +12,28 @@ router.use(companyContextMiddleware);
 // Roles permitidos para gestionar estudiantes (Lectura)
 // Roles permitidos para gestionar estudiantes (Lectura)
 // Roles permitidos para gestionar estudiantes (Lectura)
-const READ_ROLES = ['ADMIN', 'DIRECTOR', 'TEACHER'];
+const READ_ROLES = ['ADMIN', 'DIRECTOR', 'TEACHER', 'SUPERVISOR', 'DRIVER', 'CONDUCTOR', 'ENCARGADO_TRANSPORTE'];
 // Roles permitidos para modificar (Escritura)
-const WRITE_ROLES = ['ADMIN', 'DIRECTOR'];
+const WRITE_ROLES = ['ADMIN', 'DIRECTOR', 'SUPERVISOR'];
 
 router.post('/enroll', requireAnyRole(WRITE_ROLES), studentController.createStudent);
 router.post('/', requireAnyRole(WRITE_ROLES), studentController.createStudent);
 router.get('/', requireAnyRole(READ_ROLES), studentController.listStudents);
 router.get('/:id/profile', requireAnyRole(READ_ROLES), studentController.getStudentProfile);
 router.get('/:id/guardians', requireAnyRole(READ_ROLES), studentController.getStudentGuardians);
+router.get('/:id/observations', requireAnyRole(READ_ROLES), studentController.getStudentObservations);
 router.get('/:id', requireAnyRole(READ_ROLES), studentController.getStudentById);
 router.put('/:id', requireAnyRole(WRITE_ROLES), studentController.updateStudent);
 router.delete('/:id', requireAnyRole(WRITE_ROLES), studentController.deleteStudent);
 
+// Quick Actions
 // Quick Actions
 router.post('/:id/attendance', requireAnyRole(READ_ROLES), studentController.recordAttendance);
 router.post('/:id/medical-incident', requireAnyRole(READ_ROLES), studentController.recordMedicalIncident);
 router.post('/:id/observation', requireAnyRole(READ_ROLES), studentController.addObservation);
 router.get('/:id/class-book', requireAnyRole(READ_ROLES), studentController.getClassBook);
 router.get('/:id/medical-record', requireAnyRole(READ_ROLES), studentController.getMedicalRecord);
+router.get('/:id/medical-pdf', requireAnyRole(['ADMIN', 'DIRECTOR', 'TEACHER', 'SUPERVISOR']), studentController.downloadMedicalPdf);
 
 // Emergency Contacts
 router.post('/:id/contacts', requireAnyRole(WRITE_ROLES), studentController.addContact);

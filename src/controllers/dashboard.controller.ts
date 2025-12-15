@@ -42,7 +42,7 @@ export const dashboardController = {
                 if (roles.includes('ADMIN')) targetRole = 'ADMIN';
                 else if (roles.includes('DIRECTOR')) targetRole = 'DIRECTOR';
                 else if (roles.includes('TEACHER')) targetRole = 'TEACHER';
-                else if (roles.includes('DRIVER')) targetRole = 'DRIVER';
+                else if (roles.includes('DRIVER') || roles.includes('CONDUCTOR')) targetRole = 'DRIVER';
                 else if (roles.includes('GUARDIAN')) targetRole = 'GUARDIAN';
                 else targetRole = roles[0];
             }

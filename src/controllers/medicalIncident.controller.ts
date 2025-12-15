@@ -6,7 +6,7 @@ export const medicalIncidentController = {
         try {
             const { studentId } = req.params;
             const companyId = (req as any).user.companyId;
-            const userId = (req as any).user.userId;
+            const userId = (req as any).user.id;
 
             // req.body contains text fields
             // req.files contains file arrays
@@ -60,7 +60,7 @@ export const medicalIncidentController = {
     resolveIncident: async (req: Request, res: Response) => {
         try {
             const companyId = (req as any).user.companyId;
-            const userId = (req as any).user.userId;
+            const userId = (req as any).user.id;
             const { incidentId } = req.params;
             const data = req.body;
 

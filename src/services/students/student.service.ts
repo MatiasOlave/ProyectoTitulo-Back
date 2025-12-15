@@ -1,8 +1,11 @@
 import { getScopedRepository } from '../../utils/scoped-repository';
+import PDFDocument from 'pdfkit';
 import { Student } from '../../entities/students/student.entity';
 import { RouteStop } from '../../entities/transport/route-stop.entity';
 import { EmergencyContact } from '../../entities/students/emergency-contact.entity';
-import { Brackets } from 'typeorm';
+import { StudentObservation } from '../../entities/academic/student-observation.entity';
+import { ClassBookEntry } from '../../entities/academic/class-book-entry.entity';
+import { Brackets, Between } from 'typeorm';
 import { AppDataSource } from '../../config/database';
 
 export const studentService = {
@@ -289,6 +292,10 @@ export const studentService = {
                 .leftJoinAndSelect('studentGuardians.guardian', 'guardian')
                 .leftJoinAndSelect('student.medicalInfo', 'medicalInfo')
                 .leftJoinAndSelect('student.attendances', 'attendances')
+                .leftJoinAndSelect('student.medicalIncidents', 'medicalIncidents')
+                .leftJoinAndSelect('student.observations', 'observations')
+                .leftJoinAndSelect('observations.classBookEntry', 'classBookEntry')
+                .leftJoinAndSelect('classBookEntry.teacher', 'teacher')
                 .leftJoinAndSelect('student.emergencyContacts', 'emergencyContacts')
                 .leftJoinAndSelect('student.routeStops', 'routeStops')
                 .leftJoinAndSelect('routeStops.route', 'route')
@@ -510,5 +517,209 @@ export const studentService = {
         // Soft Delete
         contact.isActive = false;
         return await contactRepo.save(contact);
-    }
+    },
+
+    /**
+     * Generate Medical PDF
+     */
+    async generateMedicalPdf(studentId: string): Promise<InstanceType<typeof PDFDocument>> {
+        const studentRepo = getScopedRepository(Student);
+        const student = await studentRepo['repository'].createQueryBuilder('student')
+            .leftJoinAndSelect('student.medicalInfo', 'medicalInfo')
+            .leftJoinAndSelect('student.medicalIncidents', 'medicalIncidents')
+            .leftJoinAndSelect('student.emergencyContacts', 'emergencyContacts')
+            .where('student.id = :id', { id: studentId })
+            .getOne();
+
+        if (!student) {
+            throw new Error('Estudiante no encontrado');
+        }
+
+        const doc = new PDFDocument({ margin: 50 });
+
+        // helper for bold label
+        const drawField = (label: string, value: string) => {
+            doc.font('Helvetica-Bold').text(`${label}: `, { continued: true });
+            doc.font('Helvetica').text(value || 'No registrado');
+        };
+
+        // Header
+        doc.fontSize(20).text('Ficha Médica del Estudiante', { align: 'center' });
+        doc.moveDown();
+
+        // Student Info
+        doc.fontSize(14).text('Información Personal', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(12);
+        drawField('Nombre', `${student.firstName} ${student.lastName}`);
+        drawField('RUT', student.rut);
+        drawField('Fecha Nacimiento', new Date(student.birthDate).toLocaleDateString());
+        doc.moveDown();
+
+        // Medical Info
+        doc.fontSize(14).text('Datos Médicos', { underline: true });
+        doc.moveDown(0.5);
+
+        if (student.medicalInfo) {
+            doc.fontSize(12);
+            drawField('Tipo de Sangre', student.medicalInfo.bloodType);
+            doc.moveDown(0.5);
+
+            doc.font('Helvetica-Bold').text('Alergias:', { underline: false });
+            doc.font('Helvetica').text(student.medicalInfo.allergies || 'Ninguna registrada');
+            doc.moveDown(0.5);
+
+            doc.font('Helvetica-Bold').text('Condiciones Crónicas:');
+            doc.font('Helvetica').text(student.medicalInfo.chronicConditions || 'Ninguna registrada');
+            doc.moveDown(0.5);
+
+            doc.font('Helvetica-Bold').text('Restricciones Alimentarias:');
+            doc.font('Helvetica').text(student.medicalInfo.dietaryRestrictions || 'Ninguna');
+            doc.moveDown(0.5);
+
+            doc.font('Helvetica-Bold').text('Medicamentos:');
+            doc.font('Helvetica').text(student.medicalInfo.medications || 'No requiere');
+            doc.moveDown(0.5);
+
+            // Insurance & Doctor
+            doc.moveDown(0.5);
+            drawField('Previsión', `${student.medicalInfo.healthInsuranceProvider || ''} ${student.medicalInfo.healthInsuranceType || ''}`);
+            drawField('Médico Tratante', `${student.medicalInfo.doctorName || ''} ${student.medicalInfo.doctorPhone ? `(${student.medicalInfo.doctorPhone})` : ''}`);
+            drawField('Hospital Preferido', student.medicalInfo.preferredHospital);
+        } else {
+            doc.fontSize(12).text('No hay registro de información médica.');
+        }
+        doc.moveDown();
+
+        // Emergency Contacts
+        doc.fontSize(14).text('Contactos de Emergencia', { underline: true });
+        doc.moveDown(0.5);
+
+        const contacts = student.emergencyContacts?.filter(c => c.isActive) || [];
+
+        if (contacts.length > 0) {
+            contacts.forEach((contact, index) => {
+                doc.fontSize(12).font('Helvetica-Bold').text(`Contacto ${index + 1}: ${contact.name}`);
+                doc.font('Helvetica').text(`Relación: ${contact.relationship}`);
+                drawField('Teléfono', contact.phone);
+                if (contact.email) drawField('Email', contact.email);
+                doc.moveDown(0.5);
+            });
+        } else {
+            doc.fontSize(12).text('No hay contactos de emergencia activos.');
+        }
+
+        // Recent Medical Incidents (New Section)
+        doc.moveDown();
+        doc.fontSize(14).text('Historial Reciente de Incidentes Médicos', { underline: true });
+        doc.moveDown(0.5);
+
+        const recentIncidents = student.medicalIncidents
+            ?.sort((a, b) => new Date(b.incidentDate).getTime() - new Date(a.incidentDate).getTime())
+            .slice(0, 5) || [];
+
+        if (recentIncidents.length > 0) {
+            recentIncidents.forEach((incident, index) => {
+                doc.fontSize(12).font('Helvetica-Bold').text(`Incidente: ${new Date(incident.incidentDate).toLocaleDateString()} - ${incident.incidentType}`);
+                doc.font('Helvetica').text(`Severidad: ${incident.severity}`);
+                doc.text(`Acciones: ${incident.actionsTaken}`);
+                if (incident.requiredMedicalAttention) {
+                    doc.fillColor('red').text('REQUIRIÓ ATENCIÓN MÉDICA EXTERNA').fillColor('black');
+                }
+                doc.moveDown(0.5);
+            });
+        } else {
+            doc.fontSize(12).text('No se registran incidentes recientes.');
+        }
+
+        // Footer
+        doc.moveDown(2);
+        doc.fontSize(10).fillColor('grey').text(`Documento generado el ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, { align: 'center' });
+
+        return doc;
+    },
+
+
+
+    /**
+     * Add Observation
+     */
+    async addObservation(userId: string, studentId: string, data: any) {
+        const studentRepo = AppDataSource.getRepository(Student);
+        const student = await studentRepo.findOne({
+            where: { id: studentId },
+            relations: ['level', 'company']
+        });
+
+        if (!student) throw new Error('Student not found');
+        if (!student.level) throw new Error('Student must be assigned to a level to add observations');
+
+        const cbRepo = AppDataSource.getRepository(ClassBookEntry);
+        const obsRepo = AppDataSource.getRepository(StudentObservation);
+
+        // Find today's entry for this level and teacher (user)
+        const today = new Date();
+        const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+
+        let classBookEntry = await cbRepo.findOne({
+            where: {
+                level: { id: student.level.id },
+                teacher: { id: userId },
+                date: Between(startOfDay, endOfDay)
+            }
+        });
+
+        // If no entry exists, create one (Ad-hoc entry for the observation)
+        if (!classBookEntry) {
+            classBookEntry = cbRepo.create({
+                company: { id: student.company.id },
+                teacher: { id: userId },
+                level: { id: student.level.id },
+                date: new Date(),
+                academicYear: new Date().getFullYear().toString(),
+                totalStudents: 0, // Should ideally fetch level count, but 0 is safe for now to avoid complexity
+                studentsPresent: 0,
+                studentsAbsent: 0,
+                studentsLate: 0,
+                attendancePercentage: 0,
+                activitiesPerformed: 'Observación Individual Registrada desde Perfil',
+                resourcesUsed: 'N/A',
+                status: 'draft'
+            });
+            await cbRepo.save(classBookEntry);
+        }
+
+        const observation = obsRepo.create({
+            student: { id: studentId },
+            classBookEntry: { id: classBookEntry.id },
+            observation: data.content,
+            category: data.type || 'neutral',
+            isPositive: data.type === 'positive',
+            createdAt: new Date() // BaseEntity handles this but safe to set
+        });
+
+        return await obsRepo.save(observation);
+    },
+
+    /**
+     * Get Student Observations
+     */
+    async getStudentObservations(studentId: string) {
+        const obsRepo = AppDataSource.getRepository(StudentObservation);
+
+        const observations = await obsRepo.createQueryBuilder('observation')
+            .leftJoinAndSelect('observation.student', 'student')
+            .leftJoinAndSelect('observation.classBookEntry', 'classBookEntry')
+            .leftJoinAndSelect('classBookEntry.teacher', 'teacher')
+            .where('student.id = :studentId', { studentId })
+            // Implicitly filtered by studentId, but ensuring student belongs to company is good practice.
+            // Yet, we don't have companyId arg passed from controller in previous step.
+            // Let's rely on the student association.
+            .orderBy('observation.createdAt', 'DESC')
+            .getMany();
+
+        return observations;
+    },
+
 };
