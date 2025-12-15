@@ -20,9 +20,10 @@ export const createUserSchema = z.object({
     phone: z
         .string()
         .min(8, 'Teléfono debe tener al menos 8 caracteres'),
-    roleCode: z
-        .string()
-        .min(1, 'Rol es requerido'),
+    roleCodes: z
+        .array(z.string())
+        .min(1, 'Debe asignar al menos un rol')
+        .max(10, 'Máximo 10 roles permitidos'),
     avatarUrl: z
         .string()
         .url('URL de avatar inválida')
@@ -51,7 +52,12 @@ export const updateUserSchema = z.object({
         .string()
         .url('URL de avatar inválida')
         .optional()
-        .nullable()
+        .nullable(),
+    roleCodes: z
+        .array(z.string())
+        .min(1, 'Debe asignar al menos un rol')
+        .max(10, 'Máximo 10 roles permitidos')
+        .optional()
 });
 
 // Schema for changing user role

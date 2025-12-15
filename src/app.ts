@@ -18,7 +18,7 @@ import transportRoutes from './routes/transport.routes';
 import medicalRecordRoutes from './routes/medicalRecord.routes';
 
 import medicalIncidentRoutes from './routes/medicalIncident.routes';
-import guardianRoutes from './routes/guardian.routes';
+import guardianRoutes from './routes/students/guardian.routes';
 
 config();
 

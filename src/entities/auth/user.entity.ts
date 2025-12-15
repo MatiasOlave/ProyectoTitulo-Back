@@ -23,7 +23,7 @@ export class User extends BaseEntity {
     @Column({ type: 'varchar', length: 255, unique: true })
     email: string;
 
-    @Column({ name:'password_hash', type: 'varchar', length: 255 })
+    @Column({ name: 'password_hash', type: 'varchar', length: 255 })
     passwordHash: string;
 
     @Column({ name: 'first_name', type: 'varchar', length: 255 })
@@ -39,7 +39,7 @@ export class User extends BaseEntity {
     phone: string;
 
     @Column({ name: 'avatar_url', type: 'text', nullable: true })
-    avatarUrl: string;
+    avatarUrl: string | null;
 
     @Column({ name: 'is_active', type: 'boolean', default: true })
     isActive: boolean;
@@ -50,10 +50,10 @@ export class User extends BaseEntity {
     @Column({ name: 'last_login_at', type: 'timestamp', nullable: true })
     lastLoginAt: Date;
 
-    @Column({ name:'password_reset_token', type: 'varchar', length: 255, nullable: true })
+    @Column({ name: 'password_reset_token', type: 'varchar', length: 255, nullable: true })
     passwordResetToken: string | null;
 
-    @Column({ name:'password_reset_expires', type: 'timestamp', nullable: true })
+    @Column({ name: 'password_reset_expires', type: 'timestamp', nullable: true })
     passwordResetExpires: Date | null;
 
     @OneToMany(() => UserRole, userRole => userRole.user)
@@ -61,7 +61,7 @@ export class User extends BaseEntity {
 
     @OneToMany(() => UserRole, userRole => userRole.assignedBy)
     assignedRoles: UserRole[];
-    
+
     @OneToMany(() => MedicalIncident, medicalIncident => medicalIncident.reportedBy)
     reportedMedicalIncidents: MedicalIncident[];
 

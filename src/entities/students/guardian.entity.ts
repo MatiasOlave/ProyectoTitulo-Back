@@ -82,7 +82,7 @@ export class Guardian extends BaseEntity {
     isAuthorizedMedicalDecisions: boolean;
 
     @Column({ name: 'invitation_token', type: 'varchar', length: 255, nullable: true })
-    invitationToken: string;
+    invitationToken: string | null;
 
     @Column({ name: 'invitation_sent_at', type: 'timestamp', nullable: true })
     invitationSentAt: Date;

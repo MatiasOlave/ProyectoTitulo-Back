@@ -7,6 +7,7 @@ import { Company } from "../companies/company.entity";
 @Entity('user_roles')
 export class UserRole extends BaseEntity {
     @ManyToOne(() => User, user => user.userRoles)
+    @ManyToOne(() => User, user => user.userRoles)
     @JoinColumn({ name: 'user_id' })
     user: User;
 
