@@ -4,6 +4,7 @@ import { Company } from '../companies/company.entity';
 import { Student } from '../students/student.entity';
 import { Level } from '../students/level.entity';
 import { User } from '../auth/user.entity';
+import { ClassBookEntry } from '../academic/class-book-entry.entity';
 
 @Entity('attendance')
 export class Attendance extends BaseEntity {
@@ -87,4 +88,11 @@ export class Attendance extends BaseEntity {
 
     @Column({ name: 'guardian_notified_at', type: 'timestamp', nullable: true })
     guardianNotifiedAt: Date;
+
+    @ManyToOne(() => ClassBookEntry, entry => entry.attendanceRecords)
+    @JoinColumn({ name: 'class_book_entry_id' })
+    classBookEntry: ClassBookEntry;
+
+    @Column({ name: 'class_book_entry_id', nullable: true })
+    classBookEntryId: string;
 }
