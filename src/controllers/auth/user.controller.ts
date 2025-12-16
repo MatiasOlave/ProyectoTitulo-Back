@@ -20,6 +20,7 @@ export const userController = {
             const validatedData = createUserSchema.parse(req.body);
 
             const result = await userService.createUser(
+                req.companyId!,
                 validatedData.email,
                 validatedData.password,
                 validatedData.firstName,

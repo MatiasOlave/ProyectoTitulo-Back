@@ -187,19 +187,35 @@ export class PlanningService {
         return await this.planningRepo.save(planning);
     }
 
-    async findActivePlanning(companyId: string, teacherId: string, levelId: string, date: Date) {
-        // Find an APPROVED planning that covers the given date
-        // Note: We cast date to string YYYY-MM-DD for simpler comparison if needed, 
-        // but TypeORM handles Date objects reasonably well for <= >= comparisons.
-        const planning = await this.planningRepo.createQueryBuilder('planning')
+    async findActivePlanning(companyId: string, teacherId: string | null, levelId: string, date: string | Date) {
+        // Calculate date buffer: allow finding planning checking 1 day before start
+        // e.g. User is on 25th, Planning starts 26th. 
+        // We want 26th <= (25th + 1 day).
+
+        const dateStr = date instanceof Date
+            ? date.toISOString().split('T')[0]
+            : date;
+
+        const dateObj = new Date(dateStr);
+        // Add 1 day safely using UTC
+        dateObj.setUTCDate(dateObj.getUTCDate() + 1);
+        const bufferDateStr = dateObj.toISOString().split('T')[0];
+
+        // Find an APPROVED planning that covers the given date (with buffer)
+        const query = this.planningRepo.createQueryBuilder('planning')
             .where('planning.companyId = :companyId', { companyId })
-            .andWhere('planning.teacherId = :teacherId', { teacherId })
             .andWhere('planning.levelId = :levelId', { levelId })
             .andWhere('planning.status = :status', { status: 'approved' })
-            .andWhere(':date BETWEEN planning.startDate AND planning.endDate', { date })
-            .getOne();
+            .andWhere('planning.startDate <= :bufferDate', { bufferDate: bufferDateStr })
+            .andWhere('planning.endDate >= :date', { date: dateStr });
 
-        return planning;
+        if (teacherId) {
+            query.andWhere('planning.teacherId = :teacherId', { teacherId });
+        }
+
+        query.orderBy('planning.startDate', 'DESC');
+
+        return await query.getOne();
     }
 }
 

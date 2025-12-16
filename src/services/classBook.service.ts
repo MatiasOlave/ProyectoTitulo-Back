@@ -44,21 +44,54 @@ export const classBookService = {
         const studentsLate = attendances.filter(a => a.status === 'late').length;
         const percentage = totalStudents > 0 ? (studentsPresent / totalStudents) * 100 : 0;
 
+        // Try to fetch active planning to auto-fill data if not provided
+        let planningData: any = {};
+        try {
+            // Import dynamically to avoid circular dependency if any, or just use imported service
+            const planning = await import('./planning.service').then(m => m.planningService.findActivePlanning(companyId, teacherId, data.levelId, new Date(data.date)));
+
+            if (planning) {
+                // Auto-fill logic
+                if (!data.activitiesPerformed && planning.activities) {
+                    // Extract activities descriptions
+                    const activitiesList = Array.isArray(planning.activities)
+                        ? planning.activities.map((a: any) => `- ${a.description || a.name}`).join('\n')
+                        : '';
+                    planningData.activitiesPerformed = `[Planificación: ${planning.title}]\n${activitiesList}`;
+                }
+
+                if (!data.coreLearningAreas && planning.coreLearningAreas) {
+                    planningData.coreLearningAreas = planning.coreLearningAreas;
+                }
+
+                if (!data.resourcesUsed && planning.resources) {
+                    planningData.resourcesUsed = Array.isArray(planning.resources) ? planning.resources.join(', ') : planning.resources;
+                }
+
+                // If specific objectives exist, maybe append to achievements or general observations?
+                if (!data.achievements && planning.objectives) {
+                    planningData.achievements = `Objetivos Planificados:\n${planning.objectives}`;
+                }
+            }
+        } catch (e) {
+            console.warn('[ClassBook] Failed to fetch active planning', e);
+        }
+
         const repository = this.getRepository();
         const entry = repository.create({
             companyId,
             teacherId,
             levelId: data.levelId,
             date: data.date,
-            activitiesPerformed: data.activitiesPerformed,
-            resourcesUsed: data.resourcesUsed,
+            activitiesPerformed: data.activitiesPerformed || planningData.activitiesPerformed || '',
+            resourcesUsed: data.resourcesUsed || planningData.resourcesUsed || '',
             teachingMethodology: data.teachingMethodology || '',
             learningEnvironment: data.learningEnvironment || '',
-            achievements: data.achievements || '',
+            achievements: data.achievements || planningData.achievements || '',
             challenges: data.challenges || '',
             incidents: data.incidents || '',
             specialActivities: data.specialActivities || '',
-            coreLearningAreas: data.coreLearningAreas || null,
+            coreLearningAreas: data.coreLearningAreas || planningData.coreLearningAreas || null,
             status: 'draft',
             academicYear: new Date().getFullYear().toString(),
             totalStudents: totalStudents > 0 ? totalStudents : 0, // Fallback
@@ -113,11 +146,45 @@ export const classBookService = {
     },
 
     async getEntryById(id: string, companyId: string) {
-        const entry = await this.getRepository().findOne({
+        const repo = this.getRepository();
+        const entry = await repo.findOne({
             where: { id, companyId },
             relations: ['level', 'teacher', 'studentObservations', 'studentObservations.student']
         });
         if (!entry) throw new Error('Entrada no encontrada');
+
+        // Sync with live Attendance data
+        try {
+            const attendanceRepo = this.getAttendanceRepository();
+            const attendances = await attendanceRepo.find({
+                where: {
+                    companyId,
+                    levelId: entry.levelId,
+                    date: entry.date as any // Match date format
+                }
+            });
+
+            if (attendances.length > 0) {
+                const totalStudents = attendances.length;
+                const studentsPresent = attendances.filter(a => a.status === 'present' || a.status === 'late').length;
+                const studentsAbsent = attendances.filter(a => a.status === 'absent').length;
+                const studentsLate = attendances.filter(a => a.status === 'late').length;
+                const percentage = totalStudents > 0 ? (studentsPresent / totalStudents) * 100 : 0;
+
+                // Update entry with live stats
+                entry.totalStudents = totalStudents;
+                entry.studentsPresent = studentsPresent;
+                entry.studentsAbsent = studentsAbsent;
+                entry.studentsLate = studentsLate;
+                entry.attendancePercentage = parseFloat(percentage.toFixed(2));
+
+                await repo.save(entry);
+                // console.log('[ClassBook] Synced attendance stats', { id, percentage });
+            }
+        } catch (error) {
+            console.warn('[ClassBook] Failed to sync attendance stats', error);
+        }
+
         return entry;
     },
 
