@@ -4,6 +4,7 @@ import { BaseEntity } from '../base.entity';
 import { Company } from '../companies/company.entity';
 import { User } from '../auth/user.entity';
 import { Level } from '../students/level.entity';
+import { ClassBook } from './class-books.entity';
 
 
 @Entity('class_book_entries')
@@ -100,6 +101,13 @@ export class ClassBookEntry extends BaseEntity {
 
     @Column({ name: 'locked_at', type: 'timestamp', nullable: true })
     lockedAt: Date;
+
+    @ManyToOne(() => ClassBook, classBook => classBook.entries, { nullable: true })
+    @JoinColumn({ name: 'class_book_id' })
+    classBook: ClassBook;
+
+    @Column({ name: 'class_book_id', nullable: true })
+    classBookId: string;
 
     @ManyToOne(() => User, { nullable: true })
     @JoinColumn({ name: 'locked_by' })

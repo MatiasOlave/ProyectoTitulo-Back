@@ -37,6 +37,7 @@ import { Vehicle } from '../entities/transport/vehicle.entity';
 import { VehicleMaintenance } from '../entities/transport/vehicle-maintenance.entity';
 import { VehicleInspection } from '../entities/transport/vehicle-inspection.entity';
 import { CompanyIsolationSubscriber } from '../subscribers/company-isolation.subscriber';
+import { ClassBook } from '../entities/academic/class-books.entity';
 import { config } from 'dotenv';
 
 config();
@@ -50,6 +51,7 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_NAME || 'myapp',
   entities: [
     ActivityPlanning,
+    ClassBook,
     ClassBookEntry,
     PlanningReview,
     StudentObservation,
