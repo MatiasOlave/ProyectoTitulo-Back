@@ -12,6 +12,7 @@ export const userService = {
      * Only creates basic user data - role-specific data handled separately
      */
     async createUser(
+        companyId: string,
         email: string,
         password: string,
         firstName: string,
@@ -56,8 +57,9 @@ export const userService = {
         // Hash password
         const passwordHash = await bcrypt.hash(password, 10);
 
-        // Create user (companyId is set automatically by scoped repository)
+        // Create user with companyId
         const user = userRepo.create({
+            companyId,
             email,
             passwordHash,
             firstName,
@@ -80,13 +82,10 @@ export const userService = {
             // Assign IDs explicitly to ensure persistence
             userRole.userId = user.id;
             userRole.roleId = role.id;
-            userRole.companyId = user.companyId;
+            userRole.companyId = companyId;
             userRole.assignedById = createdById;
 
             userRole.assignedAt = new Date();
-
-            // Still good practice to set company relation if possible, but ID is critical now
-            // userRole.company = ... (we don't have company object easily, but ID is enough now)
 
             return userRole;
         });

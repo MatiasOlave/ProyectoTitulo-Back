@@ -82,6 +82,7 @@ export class DriverService {
         // Signature: createUser(email, password, firstName, lastName, rut, phone, roleCode, createdById, avatarUrl?)
         // Password = RUT as per requirements
         const user = await userService.createUser(
+            companyId,
             data.email,
             data.rut, // Password = RUT
             data.firstName,

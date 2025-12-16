@@ -112,9 +112,31 @@ export const planningController = {
                 return res.status(400).json({ success: false, error: 'Faltan parámetros levelId o date' });
             }
 
-            // Use provided teacherId or default to current user (for teachers creating their own entries)
-            const targetTeacherId = (teacherId as string) || req.user!.userId;
-            const targetDate = new Date(date as string);
+            // Determine Target Teacher ID
+            let targetTeacherId: string | null = null;
+
+            if (teacherId) {
+                targetTeacherId = teacherId as string;
+            } else {
+                // If no teacherId provided in query:
+                // - If Admin/Director: Search GLOBALLY for that level/date (targetTeacherId = null)
+                // - If Teacher: Search only THEIR planning (targetTeacherId = userId)
+
+                // We need to check roles. Req.user has roles.
+                // Assuming roles is string[] based on JWT payload usually having simplified roles
+                // Error indicated roles is string[]
+
+                const hasPrivilegedRole = req.user!.roles.some(r => ['ADMIN', 'DIRECTOR'].includes(typeof r === 'string' ? r : (r as any).code));
+
+                if (hasPrivilegedRole) {
+                    targetTeacherId = null; // Search all
+                } else {
+                    targetTeacherId = req.user!.userId; // Search own
+                }
+            }
+
+            // Pass date as string to avoid timezone parsing issues
+            const targetDate = date as string;
 
             const planning = await planningService.findActivePlanning(
                 req.companyId!,
@@ -125,6 +147,7 @@ export const planningController = {
 
             return res.json({ success: true, planning });
         } catch (error: any) {
+            console.error('[DEBUG-PLANNING] Error:', error);
             return res.status(400).json({ success: false, error: error.message });
         }
     }

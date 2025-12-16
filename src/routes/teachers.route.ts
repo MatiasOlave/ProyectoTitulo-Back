@@ -8,6 +8,8 @@ router.use(authMiddleware);
 
 router.get('/', getTeachers);
 router.get('/:id', getTeacherDetails);
+router.get('/', getTeachers);
+router.get('/:id', getTeacherDetails);
 router.post('/', createTeacher);
 router.put('/:id', updateTeacher);
 router.delete('/:id', deleteTeacher);

@@ -8,6 +8,7 @@ import { ActivityPlanning } from '../entities/academic/activity-planning.entity'
 import { ClassBookEntry } from '../entities/academic/class-book-entry.entity';
 import { AuthRequest } from '../interfaces/auth/jwt.interface';
 import bcrypt from 'bcryptjs';
+import { userService } from '../services/auth/user.service';
 
 const isAdminOrDirector = (req: AuthRequest): boolean => {
     const roles = req.user?.roles || [];
@@ -151,77 +152,46 @@ export const getTeachers = async (req: AuthRequest, res: Response): Promise<void
     }
 };
 
-/**
- * @deprecated This endpoint is no longer used by the Teachers Module (Create functionality removed).
- * Retained for compatibility or future global registration needs.
- */
 export const createTeacher = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-        if (isTeacherRole(req)) {
-            res.status(403).json({ success: false, error: 'No tienes permiso para realizar esta acción' });
+        // 1. Strict ACL: Only ADMIN or DIRECTOR
+        if (!isAdminOrDirector(req)) {
+            res.status(403).json({ success: false, error: 'No tienes permisos para crear profesores. Se requiere rol ADMIN o DIRECTOR.' });
             return;
         }
 
-        const { firstName, lastName, email, rut, phone, password } = req.body;
-        const userRepository = getScopedRepository(User);
+        const { firstName, lastName, email, rut, phone, password, avatarUrl } = req.body;
 
-        const existingUser = await userRepository.findOne({ where: { email } });
-        if (existingUser) {
-            res.status(400).json({ success: false, error: 'El email ya está registrado' });
-            return;
-        }
-
-        const passwordHash = await bcrypt.hash(password || rut, 10);
-
-        const newUser = userRepository.create({
+        // Use userService to create the user, ensuring TEACHER role
+        // We pass ['TEACHER'] as roleCodes
+        const result = await userService.createUser(
+            req.companyId!,
+            email,
+            password || rut, // Default password is RUT if not provided
             firstName,
             lastName,
-            email,
             rut,
             phone,
-            passwordHash,
-            isActive: true
-        });
-
-        await userRepository.save(newUser);
-
-        const roleRepository = AppDataSource.getRepository(Role);
-        const teacherRole = await roleRepository.findOne({
-            where: [
-                { code: 'TEACHER', companyId: req.companyId },
-                { code: 'TEACHER', isSystemRole: true }
-            ]
-        });
-
-        if (!teacherRole) {
-            throw new Error("Rol 'TEACHER' no encontrado");
-        }
-
-        const userRoleRepository = getScopedRepository(UserRole);
-        const userRole = userRoleRepository.create({
-            userId: newUser.id,
-            roleId: teacherRole.id, // Direct ID assignment
-            assignedAt: new Date(),
-            assignedById: req.user!.userId
-        });
-
-        await userRoleRepository.save(userRole);
+            ['TEACHER'], // Force TEACHER role
+            req.user!.userId,
+            avatarUrl
+        );
 
         res.status(201).json({
             success: true,
-            data: {
-                id: newUser.id,
-                firstName: newUser.firstName,
-                lastName: newUser.lastName,
-                email: newUser.email
-            }
+            data: result
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error creating teacher:', error);
+        // Handle standard errors from service
+        if (error.message === 'El correo electrónico ya está registrado' || error.message.includes('RUT')) {
+            res.status(400).json({ success: false, error: error.message });
+            return;
+        }
         res.status(500).json({
             success: false,
-            error: error instanceof Error ? error.message : 'Error interno al crear profesor'
+            error: error.message || 'Error interno al crear profesor'
         });
     }
 };
@@ -245,16 +215,34 @@ export const updateTeacher = async (req: AuthRequest, res: Response): Promise<vo
             return;
         }
 
-        teacher.firstName = firstName || teacher.firstName;
-        teacher.lastName = lastName || teacher.lastName;
-        teacher.email = email || teacher.email;
-        teacher.rut = rut || teacher.rut;
-        teacher.phone = phone || teacher.phone;
-        if (isActive !== undefined) teacher.isActive = isActive;
+        // Check if RUT already exists in this company (if changing)
+        if (rut && rut !== teacher.rut) {
+            const existingRut = await userRepository.findOne({
+                where: { rut }
+            });
 
-        await userRepository.save(teacher);
+            if (existingRut) {
+                res.status(400).json({ success: false, error: 'El RUT ya está registrado en esta empresa' });
+                return;
+            }
+        }
 
-        res.json({ success: true, data: teacher });
+        // Prepare updates object
+        const updates: any = { updatedAt: new Date() }; // Force timestamp update
+        if (firstName !== undefined) updates.firstName = firstName;
+        if (lastName !== undefined) updates.lastName = lastName;
+        if (email !== undefined) updates.email = email;
+        if (rut !== undefined) updates.rut = rut;
+        if (phone !== undefined) updates.phone = phone;
+        if (isActive !== undefined) updates.isActive = isActive;
+
+        // Use direct update like in user.service.ts to avoid relation issues with .save()
+        await userRepository['repository'].update(id, updates);
+
+        // Fetch updated entity to return
+        const updatedTeacher = await userRepository.findOne({ where: { id } });
+
+        res.json({ success: true, data: updatedTeacher });
 
     } catch (error) {
         console.error('Error updating teacher:', error);
