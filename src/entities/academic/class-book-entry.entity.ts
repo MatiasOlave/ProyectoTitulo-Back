@@ -5,6 +5,7 @@ import { Company } from '../companies/company.entity';
 import { User } from '../auth/user.entity';
 import { Level } from '../students/level.entity';
 import { ClassBook } from './class-books.entity';
+import { Attendance } from '../attendance/attendance.entity';
 
 
 @Entity('class_book_entries')
@@ -131,4 +132,7 @@ export class ClassBookEntry extends BaseEntity {
 
     @OneToMany(() => StudentObservation, observation => observation.classBookEntry)
     studentObservations: StudentObservation[];
+
+    @OneToMany(() => Attendance, attendance => attendance.classBookEntry)
+    attendanceRecords: Attendance[];
 }
