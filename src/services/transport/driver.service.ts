@@ -6,7 +6,7 @@ import { CreateDriverDto } from "../../dtos/transport/driver.dto";
 import { User } from "../../entities/auth/user.entity";
 import { userService } from "../auth/user.service";
 import { getCompanyId } from "../../utils/context";
-import { Not, Brackets } from "typeorm";
+import { Not, Brackets, IsNull } from "typeorm";
 import { DriverDocumentAlert } from "../../entities/transport/driver-document-alert.entity";
 import { driverNotificationService } from "./driver-notification.service";
 
@@ -501,13 +501,19 @@ export class DriverService {
         if (!companyId) throw new Error('Company Context missing');
 
         const vehicleRepo = AppDataSource.getRepository(Vehicle);
-        const vehicles = await vehicleRepo.find({
-            where: {
-                companyId,
-                status: 'active'
-            },
-            select: ['id', 'brand', 'model', 'licensePlate', 'internalCode', 'year']
-        });
+
+        // We need to know if the vehicle has an active PRIMARY assignment
+        // So we join assignments where isPrimaryDriver = true AND unassignmentDate is null
+
+        const vehicles = await vehicleRepo.createQueryBuilder('vehicle')
+            .leftJoinAndMapOne('vehicle.activePrimary', 'vehicle.driverAssignments', 'assignment', 'assignment.isPrimaryDriver = :isPrimary AND assignment.unassignmentDate IS NULL', { isPrimary: true })
+            .where('vehicle.companyId = :companyId', { companyId })
+            .andWhere('vehicle.status = :status', { status: 'active' })
+            .select(['vehicle.id', 'vehicle.brand', 'vehicle.model', 'vehicle.licensePlate', 'vehicle.internalCode', 'vehicle.year', 'assignment.id', 'assignment.driverId']) // Select assignment fields necessary or just check existence
+            .getMany();
+
+        // Map to a simpler structure or just let the property exist (it will be in the object if mapped)
+        // With leftJoinAndMapOne, 'vehicle.activePrimary' will be the assignment object or null.
 
         return vehicles;
     }
@@ -532,12 +538,12 @@ export class DriverService {
             where: {
                 driverId: driverId,
                 vehicleId: data.vehicleId,
-                unassignmentDate: undefined // or IsNull() if using TypeORM operator
+                unassignmentDate: IsNull()
             } as any
         });
 
         if (existing) {
-            throw new Error('El conductor ya tiene asignado este vehículo.');
+            throw new Error(`El conductor ya tiene una asignación activa con este vehículo (Desde: ${new Date(existing.assignmentDate).toLocaleDateString()}).`);
         }
 
         // Check if vehicle already has a primary driver
@@ -546,7 +552,7 @@ export class DriverService {
                 where: {
                     vehicleId: data.vehicleId,
                     isPrimaryDriver: true,
-                    unassignmentDate: undefined // or IsNull()
+                    unassignmentDate: IsNull()
                 } as any
             });
 

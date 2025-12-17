@@ -74,11 +74,14 @@ export class InspectionService {
         inspection.supervisorSignatureUrl = data.supervisorSignatureUrl || ''; // "Signed"
         inspection.approvedById = userId;
         inspection.approvedAt = new Date();
-        // Maybe update overall status if rejected? but data.status is passed
-        // The DTO has status, but entity has overallStatus? Or assume this is just for approval flag?
-        // Check entity: entity has `approvedBy`, `approvedAt`, `supervisorSignature`. 
-        // Requirements say: "Aprobación final (Booleano/Estado que requiere la firma del Supervisor)"
-        // CreateInspectionDto has `overallStatus`.
+
+        if (data.status) {
+            inspection.overallStatus = data.status;
+        }
+
+        if (data.generalObservations !== undefined) {
+            inspection.generalObservations = data.generalObservations;
+        }
 
         return await this.inspectionRepo.save(inspection);
     }

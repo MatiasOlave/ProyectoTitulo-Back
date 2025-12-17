@@ -239,16 +239,21 @@ export class DriverController {
         try {
             const { id } = req.params;
             const { vehicleId, isPrimary, assignmentDate } = req.body;
+            console.log('DEBUG: assignVehicle Payload:', { id, body: req.body }); // DEBUG LOG
+
             const assignedById = (req as any).user?.id || (req as any).user?.sub;
 
             if (!assignedById) return res.status(401).json({ message: 'Usuario no autenticado' });
-            if (!vehicleId || !assignmentDate) return res.status(400).json({ message: 'Datos incompletos para asignación' });
+            if (!vehicleId || !assignmentDate) {
+                console.log('DEBUG: assignVehicle Missing Data');
+                return res.status(400).json({ message: 'Datos incompletos para asignación' });
+            }
 
             const assignment = await driverService.assignVehicle(id, { vehicleId, isPrimary, assignmentDate }, assignedById);
             return res.status(201).json(assignment);
         } catch (error: any) {
             console.error('Error assigning vehicle:', error);
-            if (error.message.includes('no encontrado') || error.message.includes('ya tiene asignado')) {
+            if (error.message.includes('no encontrado') || error.message.includes('ya tiene asignado') || error.message.includes('ya tiene un conductor') || error.message.includes('suspendido') || error.message.includes('baja')) {
                 return res.status(400).json({ message: error.message });
             }
             return res.status(500).json({ message: error.message || 'Error al asignar vehículo' });

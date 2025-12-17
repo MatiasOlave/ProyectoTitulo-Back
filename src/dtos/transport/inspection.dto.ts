@@ -19,4 +19,5 @@ export class CreateInspectionDto {
 export class ApproveInspectionDto {
     supervisorSignatureUrl?: string;
     status: string; // 'approved' | 'rejected'
+    generalObservations?: string;
 }
