@@ -122,6 +122,7 @@ export class DriverService {
                 'user',
                 'city',
                 'city.region',
+                'city.region.country',
                 'documents',
                 'vehicleAssignments',
                 'vehicleAssignments.vehicle',
@@ -171,7 +172,7 @@ export class DriverService {
             driverId: driver.id,
             documentType: data.documentType,
             documentName: data.documentName || file.originalname,
-            fileUrl: file.path, // Storing relative path or whatever storage logic
+            fileUrl: file.path.replace(/\\/g, '/'), // Ensure forward slashes for URLs
             fileName: file.filename,
             fileSize: file.size,
             mimeType: file.mimetype,
@@ -280,7 +281,7 @@ export class DriverService {
 
         const DriverDocumentAlertRepo = AppDataSource.getRepository('DriverDocumentAlert');
 
-        const isDriver = user.userRoles.some((ur: any) => ur.role.code === 'CONDUCTOR');
+        const isDriver = user.userRoles.some((ur: any) => ur.role.code === 'DRIVER');
         const isAdmin = user.userRoles.some((ur: any) => ['ADMIN', 'DIRECTOR', 'ENCARGADO_TRANSPORTE'].includes(ur.role.code));
 
         let whereClause: any = { companyId, isActive: true };
@@ -394,7 +395,13 @@ export class DriverService {
         if (data.phone) driver.phone = data.phone;
         if (data.phoneSecondary) driver.phoneSecondary = data.phoneSecondary;
         if (data.address) driver.address = data.address;
-        if (data.cityId) driver.cityId = data.cityId;
+        if (data.address) driver.address = data.address;
+
+        // Fix Persistence: Prevent TypeORM from preferring old loaded 'city' relation over new 'cityId'
+        if (data.cityId) {
+            driver.cityId = data.cityId;
+            driver.city = null as any; // Force unlinking of old city object
+        }
 
         // Emergency Contact
         if (data.emergencyContactName) driver.emergencyContactName = data.emergencyContactName;
@@ -422,7 +429,7 @@ export class DriverService {
         return this.driverRepository.save(driver);
     }
 
-    async suspendDriver(driverId: string, data: { reason: string; startDate: Date; endDate: Date }, userId: string) {
+    async suspendDriver(driverId: string, data: { reason: string; startDate: Date | string; endDate: Date | string }, userId: string) {
         const companyId = getCompanyId();
         const driver = await this.driverRepository.findOne({ where: { id: driverId, companyId }, relations: ['user'] });
         if (!driver) throw new Error('Conductor no encontrado');
@@ -430,8 +437,17 @@ export class DriverService {
         // Update Driver Status
         driver.status = 'suspendido';
         driver.suspensionReason = data.reason;
-        driver.suspensionStartDate = data.startDate.toISOString().split('T')[0];
-        driver.suspensionEndDate = data.endDate.toISOString().split('T')[0];
+
+        // Ensure dates are converted to strings YYYY-MM-DD
+        const startDate = new Date(data.startDate);
+        const endDate = new Date(data.endDate);
+
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            throw new Error('Fechas de suspensión inválidas');
+        }
+
+        driver.suspensionStartDate = startDate.toISOString().split('T')[0];
+        driver.suspensionEndDate = endDate.toISOString().split('T')[0];
 
         // Log who suspended (could use a separate audit log, but relying on entities for now)
         // driver.updatedBy = userId; // If we had this field
@@ -445,8 +461,8 @@ export class DriverService {
                     driver.email,
                     driver.firstName,
                     data.reason,
-                    data.startDate,
-                    data.endDate
+                    startDate,
+                    endDate
                 );
             }
 
