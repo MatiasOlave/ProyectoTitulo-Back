@@ -435,8 +435,10 @@ export const studentService = {
             student.status = 'inactive';
             student.withdrawalDate = new Date(retirementData.date);
             student.withdrawalReason = retirementData.reason;
-            await studentRepo.save(student);
-            return { success: true, message: 'Estudiante retirado correctamente' };
+            await studentRepo.save(student); // Save audit data
+            await studentRepo.softRemove(student); // Perform logical deletion (sets deleted_at)
+
+            return { success: true, message: 'Estudiante retirado y eliminado correctamente' };
         } else {
             // If no data provided, perform hard delete or throw?
             // User requirement implies DELETE endpoint handles the Soft Delete flow.
