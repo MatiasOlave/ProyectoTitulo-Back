@@ -54,14 +54,16 @@ export class CompanyService {
         }
 
         if (data.cityId) {
-            // TypeORM fix: If 'city' relation is loaded, modifying 'cityId' via merge is ignored.
-            // We must explicitly update the relation object or clear it.
-            // Casting to any to avoid fetching the full City entity just for the reference
+            // TypeORM fix: explicitly update the relation AND the foreign key
             company.city = { id: data.cityId } as any;
+            company.cityId = data.cityId;
         }
 
         this.companyRepository.merge(company, data);
-        return await this.companyRepository.save(company);
+        await this.companyRepository.save(company);
+
+        // Return full entity with relations loaded to ensure UI has correct data (e.g. city name)
+        return await this.findById(id);
     }
 
     async getStatistics(companyId: string) {
