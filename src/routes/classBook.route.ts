@@ -8,10 +8,17 @@ const router = Router();
 
 router.use(authMiddleware);
 
+
+router.post('/books', classBookController.createBook);
+router.get('/books', classBookController.listBooks);
+router.get('/books/:id', classBookController.getBookById);
+
 router.post('/', classBookController.createEntry);
-router.get('/', classBookController.listEntries);
+router.get('/', classBookController.listEntries); // Can filter by bookId
 router.get('/:id', classBookController.getEntryById);
+
 router.put('/:id', classBookController.updateEntry);
+router.delete('/:id', classBookController.deleteEntry);
 router.post('/:id/observations', classBookController.addObservation);
 router.post('/:id/lock', classBookController.lockEntry);
 router.post('/:id/review', classBookController.reviewEntry);

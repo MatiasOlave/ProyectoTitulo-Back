@@ -3,7 +3,7 @@ import { Attendance } from '../entities/attendance/attendance.entity';
 import { AttendanceAlert } from '../entities/attendance/attendance-alert.entity';
 import { Student } from '../entities/students/student.entity';
 import { validate as uuidValidate } from 'uuid';
-import { LessThan, Between, EntityManager } from 'typeorm';
+import { LessThan, Between, EntityManager, Brackets } from 'typeorm';
 
 class AttendanceService {
     private attendanceRepository = AppDataSource.getRepository(Attendance);
@@ -11,19 +11,47 @@ class AttendanceService {
     private studentRepository = AppDataSource.getRepository(Student);
 
     async bulkRegister(companyId: string, userId: string, data: any) {
-        const { levelId, date, students } = data;
+        const { levelId, date, students, classBookEntryId } = data;
         const results: Attendance[] = [];
 
         // Transaction to ensure atomicity
         return await AppDataSource.transaction(async (transaction_manager) => {
             for (const item of students) {
-                let attendance = await transaction_manager.findOne(Attendance, {
-                    where: {
-                        companyId: companyId,
-                        studentId: item.studentId,
-                        date: date
+                // Find logic with adoption strategy
+                let attendance: Attendance | null = null;
+                const strictWhere = {
+                    companyId: companyId,
+                    studentId: item.studentId,
+                    classBookEntryId: classBookEntryId
+                };
+
+                if (classBookEntryId) {
+                    // 1. Try strict match
+                    attendance = await transaction_manager.findOne(Attendance, { where: strictWhere });
+
+                    // 2. If not found, look for adoptable orphan (legacy record)
+                    if (!attendance) {
+                        const orphanWhere = {
+                            companyId: companyId,
+                            studentId: item.studentId,
+                            date: date,
+                            levelId: levelId,
+                            classBookEntryId: null // Explicitly only null ones
+                        };
+                        // @ts-ignore
+                        attendance = await transaction_manager.findOne(Attendance, { where: orphanWhere });
                     }
-                });
+                } else {
+                    // Fallback Legacy mode (no ID provided)
+                    attendance = await transaction_manager.findOne(Attendance, {
+                        where: {
+                            companyId: companyId,
+                            studentId: item.studentId,
+                            date: date,
+                            levelId: levelId
+                        }
+                    });
+                }
 
                 if (attendance) {
                     if (attendance.isLocked) {
@@ -32,7 +60,9 @@ class AttendanceService {
                     // Update existing
                     transaction_manager.merge(Attendance, attendance, {
                         ...item,
-                        lastModifiedById: userId
+                        lastModifiedById: userId,
+                        // Ensure entry ID is linked (adoption or maintenance)
+                        classBookEntryId: classBookEntryId || attendance.classBookEntryId
                     });
                 } else {
                     // Create new
@@ -42,6 +72,7 @@ class AttendanceService {
                         levelId: levelId,
                         date: date,
                         studentId: item.studentId,
+                        classBookEntryId: classBookEntryId || null,
                         status: item.status,
                         checkInTime: item.checkInTime,
                         checkOutTime: item.checkOutTime,
@@ -57,16 +88,8 @@ class AttendanceService {
                 results.push(attendance);
 
                 // Notify Guardian on Single Absence (if new or status changed to absent)
-                // Avoid spamming if updating same record without status change? 
-                // For simplicity, we notify if status is 'absent' and it wasn't before? 
-                // Actually bulkRegister is upsert. Let's send if status is 'absent' and (reason is empty or check requirements).
-                // Requirement: "Por ausencia no justificada".
-                // If status is absent and no absenceReason is provided?
                 if (item.status === 'absent' && !item.absenceReason) {
-                    // Check if we should notify (e.g. ensure we don't notify twice for the same day/student? - leaving simple for now)
-                    // Ideally we check if we already notified today, but that requires a notification log.
-                    // We'll call notifyGuardian directly.
-                    await this.notifyGuardian(item.studentId, `Su pupilo ha faltado hoy ${date}. Por favor justificar.`);
+                    await this.notifyGuardian(item.studentId, `Su pupilo ha faltado hoy ${date.toISOString().split('T')[0]}. Por favor justificar.`);
                 }
 
                 // Check Alerts Logic Integration
@@ -126,42 +149,78 @@ class AttendanceService {
         if (filters.levelId) {
             qb.andWhere('attendance.levelId = :levelId', { levelId: filters.levelId });
         }
-        if (filters.startDate) {
-            qb.andWhere('attendance.date >= :startDate', { startDate: filters.startDate });
-        }
-        if (filters.endDate) {
-            qb.andWhere('attendance.date <= :endDate', { endDate: filters.endDate });
+        if (filters.classBookEntryId) {
+            // Prioritize Entry ID match (Strict) - finds record even if date is mistakenly 1 day off
+            // Combine with Legacy Orphan check which MUST match date
+            if (filters.date) {
+                qb.andWhere(new Brackets(subQb => {
+                    subQb.where('attendance.classBookEntryId = :entryId', { entryId: filters.classBookEntryId })
+                        .orWhere('(attendance.classBookEntryId IS NULL AND attendance.levelId = :levelId AND attendance.date = :date)', {
+                            levelId: filters.levelId,
+                            date: filters.date
+                        });
+                }));
+            } else {
+                qb.andWhere('attendance.classBookEntryId = :entryId', { entryId: filters.classBookEntryId });
+            }
+        } else if (filters.date) {
+            // Standard date filter if no Entry ID context
+            qb.andWhere('attendance.date = :date', { date: filters.date });
         }
 
-        // Clone for stats BEFORE adding joins/pagination to avoid GROUP BY issues
-        const statsQb = qb.clone();
-
-        const [data, total] = await qb
+        // Fetch RAW records first to handle deduplication in code
+        // We cannot rely on simple COUNT() query if we have duplicates in the subset
+        const rawData = await qb
             .leftJoinAndSelect('attendance.student', 'student')
-            .skip((filters.page - 1) * filters.limit)
-            .take(filters.limit)
-            .orderBy('attendance.date', 'DESC')
-            .getManyAndCount();
+            .orderBy('attendance.date', 'DESC') // ensures order
+            .addOrderBy('attendance.createdAt', 'DESC') // latest first
+            .getMany();
 
-        const stats = await statsQb
-            .select("attendance.status")
-            .addSelect("COUNT(attendance.id)", "count")
-            .groupBy("attendance.status")
-            .getRawMany();
+        // Deduplicate logic: Prefer Strict > Legacy
+        const dedupedMap = new Map<string, Attendance>();
 
+        rawData.forEach(att => {
+            const existing = dedupedMap.get(att.studentId);
+            if (!existing) {
+                // First one found (due to order, latest first?)
+                // Actually we need to prioritize strict 'classBookEntryId === filters.classBookEntryId'
+                dedupedMap.set(att.studentId, att);
+            } else {
+                // If existing is orphan/legacy and current is Strict, replace
+                // But if we order right, strict usually comes if we queried right?
+                // Explicit check:
+                const isCurrentStrict = att.classBookEntryId === filters.classBookEntryId;
+                const isExistingStrict = existing.classBookEntryId === filters.classBookEntryId;
+
+                if (isCurrentStrict && !isExistingStrict) {
+                    dedupedMap.set(att.studentId, att);
+                }
+            }
+        });
+
+        // Convert back to array
+        const finalData = Array.from(dedupedMap.values());
+
+        // Manual Filtering for Pagination (if needed, but usually attendance is small list per class)
+        // Ignoring pagination for bulk view correctness, but respecting if explicit?
+        // Let's slice if page/limit provided.
+        const startIndex = (filters.page - 1) * filters.limit;
+        const slicedData = finalData.slice(startIndex, startIndex + filters.limit);
+
+        // Stats Calculation on Deduped Data
         const summary = {
             present: 0,
             absent: 0,
             late: 0,
             excused: 0,
-            total: total
+            total: finalData.length
         };
 
-        stats.forEach((s: any) => {
-            if (s.status === 'present') summary.present = parseInt(s.count);
-            else if (s.status === 'absent') summary.absent = parseInt(s.count);
-            else if (s.status === 'late') summary.late = parseInt(s.count);
-            else if (s.status === 'excused') summary.excused = parseInt(s.count);
+        finalData.forEach(s => {
+            if (s.status === 'present') summary.present++;
+            else if (s.status === 'absent') summary.absent++;
+            else if (s.status === 'late') summary.late++;
+            else if (s.status === 'excused') summary.excused++;
         });
 
         const presentOrLate = summary.present + summary.late;
@@ -169,9 +228,9 @@ class AttendanceService {
         const percentage = totalRecorded > 0 ? (presentOrLate / totalRecorded) * 100 : 0;
 
         return {
-            data,
+            data: slicedData,
             meta: {
-                total,
+                total: finalData.length,
                 page: filters.page,
                 limit: filters.limit,
                 stats: { ...summary, percentage: parseFloat(percentage.toFixed(2)) }
