@@ -2,7 +2,11 @@ import { z } from 'zod';
 
 export const bulkAttendanceSchema = z.object({
     levelId: z.string().uuid(),
-    date: z.string().transform((str) => new Date(str)),
+    classBookEntryId: z.string().uuid().optional(),
+    date: z.string().transform((str) => {
+        const [year, month, day] = str.split('-').map(Number);
+        return new Date(year, month - 1, day, 12, 0, 0);
+    }),
     students: z.array(
         z.object({
             studentId: z.string().uuid(),
@@ -30,8 +34,22 @@ export const updateAttendanceSchema = z.object({
 export const attendanceFiltersSchema = z.object({
     studentId: z.string().uuid().optional(),
     levelId: z.string().uuid().optional(),
-    startDate: z.string().optional().transform((str) => str ? new Date(str) : undefined),
-    endDate: z.string().optional().transform((str) => str ? new Date(str) : undefined),
+    classBookEntryId: z.string().uuid().optional(),
+    date: z.string().optional().transform((str) => {
+        if (!str) return undefined;
+        const [year, month, day] = str.split('-').map(Number);
+        return new Date(year, month - 1, day, 12, 0, 0);
+    }),
+    startDate: z.string().optional().transform((str) => {
+        if (!str) return undefined;
+        const [year, month, day] = str.split('-').map(Number);
+        return new Date(year, month - 1, day, 12, 0, 0);
+    }),
+    endDate: z.string().optional().transform((str) => {
+        if (!str) return undefined;
+        const [year, month, day] = str.split('-').map(Number);
+        return new Date(year, month - 1, day, 12, 0, 0);
+    }),
     page: z.string().optional().transform(val => val ? parseInt(val, 10) : 1),
     limit: z.string().optional().transform(val => val ? parseInt(val, 10) : 10),
 });

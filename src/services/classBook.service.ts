@@ -4,7 +4,7 @@ import { StudentObservation } from '../entities/academic/student-observation.ent
 import { Attendance } from '../entities/attendance/attendance.entity';
 import { CreateClassBookEntryDTO, ClassBookFiltersDTO, CreateObservationDTO, UpdateClassBookEntryDTO } from '../schemas/classBook.schema';
 import { User } from '../entities/auth/user.entity';
-import { FindOptionsWhere, Between } from 'typeorm';
+import { FindOptionsWhere, Between, IsNull } from 'typeorm';
 import { pdfService } from './pdf.service';
 
 export const classBookService = {
@@ -21,6 +21,12 @@ export const classBookService = {
     },
 
     async createEntry(companyId: string, teacherId: string, data: CreateClassBookEntryDTO) {
+        // Validate Level Ownership
+        const Level = (await import('../entities/students/level.entity')).Level;
+        const levelRepo = AppDataSource.getRepository(Level);
+        const level = await levelRepo.findOne({ where: { id: data.levelId, companyId } });
+        if (!level) throw new Error('Nivel no encontrado o no pertenece a la compañía');
+
         // Calculate Attendance Summary Automatically
         const attendanceRepo = this.getAttendanceRepository();
         const startOfDay = new Date(data.date);
@@ -28,20 +34,14 @@ export const classBookService = {
         const endOfDay = new Date(data.date);
         endOfDay.setHours(23, 59, 59, 999);
 
-        const attendances = await attendanceRepo.find({
-            where: {
-                companyId,
-                levelId: data.levelId,
-                date: data.date as any // Or filter by range if needed depending on DB type
-                // Typically date column is date type, so exact match might generic issue. 
-                // Better to use range or exact string if standard. Assuming date object works or string matches.
-            }
-        });
+        const attendances: Attendance[] = []; // Strict isolation: New entries start empty.
+        // Legacy fetching removed to prevent linking to unrelated attendance records.
 
         const totalStudents = attendances.length; // Or fetch from Level capacity/enrollment
         const studentsPresent = attendances.filter(a => a.status === 'present' || a.status === 'late').length;
         const studentsAbsent = attendances.filter(a => a.status === 'absent').length;
         const studentsLate = attendances.filter(a => a.status === 'late').length;
+        const studentsJustified = attendances.filter(a => a.status === 'excused').length;
         const percentage = totalStudents > 0 ? (studentsPresent / totalStudents) * 100 : 0;
 
         // Try to fetch active planning to auto-fill data if not provided
@@ -98,8 +98,27 @@ export const classBookService = {
             studentsPresent,
             studentsAbsent,
             studentsLate,
+            studentsJustified,
             attendancePercentage: parseFloat(percentage.toFixed(2))
         });
+
+        // Link to ClassBook if exists
+        try {
+            const ClassBook = (await import('../entities/academic/class-books.entity')).ClassBook;
+            const bookRepo = AppDataSource.getRepository(ClassBook);
+            const book = await bookRepo.findOne({
+                where: {
+                    companyId,
+                    levelId: data.levelId,
+                    status: 'active'
+                }
+            });
+            if (book) {
+                entry.classBook = book;
+                entry.classBookId = book.id;
+            }
+        } catch (e) { /* ignore if fails, maintain compatibility */ }
+
 
         return await repository.save(entry);
     },
@@ -109,6 +128,50 @@ export const classBookService = {
         const entry = await repo.findOne({ where: { id, companyId } });
         if (!entry) throw new Error('Entrada no encontrada');
         if (entry.isLocked) throw new Error('La entrada está bloqueada y no se puede editar');
+
+        // Sync Attendance Stats
+        try {
+            const attendanceRepo = this.getAttendanceRepository();
+
+            // 1. Strict Match
+            let attendances = await attendanceRepo.find({
+                where: { companyId, classBookEntryId: id }
+            });
+
+            // 2. Fallback Legacy Match (Orphans)
+            if (attendances.length === 0) {
+                const dateStr = entry.date instanceof Date
+                    ? entry.date.toISOString().split('T')[0]
+                    : String(entry.date).substring(0, 10);
+
+                attendances = await attendanceRepo.find({
+                    where: {
+                        companyId,
+                        levelId: entry.levelId,
+                        date: dateStr as any,
+                        classBookEntryId: IsNull()
+                    }
+                });
+            }
+
+            if (attendances.length > 0) {
+                const totalStudents = attendances.length;
+                const studentsPresent = attendances.filter(a => a.status === 'present' || a.status === 'late').length;
+                const studentsAbsent = attendances.filter(a => a.status === 'absent').length;
+                const studentsLate = attendances.filter(a => a.status === 'late').length;
+                const studentsJustified = attendances.filter(a => a.status === 'excused').length;
+                const percentage = totalStudents > 0 ? (studentsPresent / totalStudents) * 100 : 0;
+
+                entry.totalStudents = totalStudents;
+                entry.studentsPresent = studentsPresent;
+                entry.studentsAbsent = studentsAbsent;
+                entry.studentsLate = studentsLate;
+                entry.studentsJustified = studentsJustified;
+                entry.attendancePercentage = parseFloat(percentage.toFixed(2));
+            }
+        } catch (e) {
+            console.warn('[ClassBook] Failed to sync attendance stats on update', e);
+        }
 
         repo.merge(entry, data);
         return await repo.save(entry);
@@ -139,6 +202,11 @@ export const classBookService = {
             queryBuilder.andWhere('entry.level_id = :levelId', { levelId: filters.levelId });
         }
 
+        // New filter by Book ID
+        if ((filters as any).bookId) {
+            queryBuilder.andWhere('entry.class_book_id = :bookId', { bookId: (filters as any).bookId });
+        }
+
         return await queryBuilder
             .orderBy('entry.date', 'DESC')
             .addOrderBy('entry.created_at', 'DESC')
@@ -149,26 +217,41 @@ export const classBookService = {
         const repo = this.getRepository();
         const entry = await repo.findOne({
             where: { id, companyId },
-            relations: ['level', 'teacher', 'studentObservations', 'studentObservations.student']
+            relations: ['level', 'teacher', 'studentObservations', 'studentObservations.student', 'classBook']
         });
         if (!entry) throw new Error('Entrada no encontrada');
 
         // Sync with live Attendance data
         try {
             const attendanceRepo = this.getAttendanceRepository();
-            const attendances = await attendanceRepo.find({
-                where: {
-                    companyId,
-                    levelId: entry.levelId,
-                    date: entry.date as any // Match date format
-                }
+
+            // 1. Strict Match
+            let attendances = await attendanceRepo.find({
+                where: { companyId, classBookEntryId: id }
             });
+
+            // 2. Fallback Legacy Match (Orphans)
+            if (attendances.length === 0) {
+                const dateStr = entry.date instanceof Date
+                    ? entry.date.toISOString().split('T')[0]
+                    : String(entry.date).substring(0, 10);
+
+                attendances = await attendanceRepo.find({
+                    where: {
+                        companyId,
+                        levelId: entry.levelId,
+                        date: dateStr as any,
+                        classBookEntryId: IsNull()
+                    }
+                });
+            }
 
             if (attendances.length > 0) {
                 const totalStudents = attendances.length;
                 const studentsPresent = attendances.filter(a => a.status === 'present' || a.status === 'late').length;
                 const studentsAbsent = attendances.filter(a => a.status === 'absent').length;
                 const studentsLate = attendances.filter(a => a.status === 'late').length;
+                const studentsJustified = attendances.filter(a => a.status === 'excused').length;
                 const percentage = totalStudents > 0 ? (studentsPresent / totalStudents) * 100 : 0;
 
                 // Update entry with live stats
@@ -176,6 +259,7 @@ export const classBookService = {
                 entry.studentsPresent = studentsPresent;
                 entry.studentsAbsent = studentsAbsent;
                 entry.studentsLate = studentsLate;
+                entry.studentsJustified = studentsJustified;
                 entry.attendancePercentage = parseFloat(percentage.toFixed(2));
 
                 await repo.save(entry);
@@ -211,6 +295,50 @@ export const classBookService = {
         const repo = this.getRepository();
         const entry = await repo.findOne({ where: { id, companyId } });
         if (!entry) throw new Error('Entrada no encontrada');
+
+        // Sync Attendance Stats before locking
+        try {
+            const attendanceRepo = this.getAttendanceRepository();
+
+            // 1. Strict Match
+            let attendances = await attendanceRepo.find({
+                where: { companyId, classBookEntryId: id }
+            });
+
+            // 2. Fallback Legacy Match (Orphans)
+            if (attendances.length === 0) {
+                const dateStr = entry.date instanceof Date
+                    ? entry.date.toISOString().split('T')[0]
+                    : String(entry.date).substring(0, 10);
+
+                attendances = await attendanceRepo.find({
+                    where: {
+                        companyId,
+                        levelId: entry.levelId,
+                        date: dateStr as any,
+                        classBookEntryId: IsNull()
+                    }
+                });
+            }
+
+            if (attendances.length > 0) {
+                const totalStudents = attendances.length;
+                const studentsPresent = attendances.filter(a => a.status === 'present' || a.status === 'late').length;
+                const studentsAbsent = attendances.filter(a => a.status === 'absent').length;
+                const studentsLate = attendances.filter(a => a.status === 'late').length;
+                const studentsJustified = attendances.filter(a => a.status === 'excused').length;
+                const percentage = totalStudents > 0 ? (studentsPresent / totalStudents) * 100 : 0;
+
+                entry.totalStudents = totalStudents;
+                entry.studentsPresent = studentsPresent;
+                entry.studentsAbsent = studentsAbsent;
+                entry.studentsLate = studentsLate;
+                entry.studentsJustified = studentsJustified;
+                entry.attendancePercentage = parseFloat(percentage.toFixed(2));
+            }
+        } catch (e) {
+            console.warn('[ClassBook] Failed to sync attendance stats on lock', e);
+        }
 
         entry.isLocked = true;
         entry.lockedAt = new Date();
@@ -248,5 +376,97 @@ export const classBookService = {
         entry.documents = [...currentDocuments, ...documents];
 
         return await repo.save(entry);
+    },
+
+    async deleteEntry(id: string, companyId: string) {
+        const repo = this.getRepository();
+        const entry = await repo.findOne({ where: { id, companyId } });
+        if (!entry) throw new Error('Entrada no encontrada');
+        if (entry.isLocked) throw new Error('No se puede eliminar una entrada bloqueada');
+
+        await repo.softRemove(entry);
+    },
+
+    // --- Class Book Management ---
+
+    async getBookRepository() {
+        const ClassBook = (await import('../entities/academic/class-books.entity')).ClassBook;
+        return AppDataSource.getRepository(ClassBook);
+    },
+
+    async createBook(companyId: string, levelId: string, headTeacherId: string, createdById: string) {
+        // Enforce Unique Book per Level for current Year? 
+        // For simplicity, let's just check if active book exists for this level
+        const ClassBook = (await import('../entities/academic/class-books.entity')).ClassBook;
+        const repo = AppDataSource.getRepository(ClassBook);
+
+        // Validate Level Ownership
+        const Level = (await import('../entities/students/level.entity')).Level;
+        const levelRepo = AppDataSource.getRepository(Level);
+        const level = await levelRepo.findOne({ where: { id: levelId, companyId } });
+        if (!level) throw new Error('Nivel no encontrado o no pertenece a la compañía');
+
+        const existing = await repo.findOne({
+            where: {
+                companyId,
+                levelId,
+                status: 'active'
+            }
+        });
+
+        if (existing) {
+            throw new Error('Ya existe un libro de clases activo para este nivel.');
+        }
+
+        const book = repo.create({
+            companyId,
+            levelId,
+            headTeacherId,
+            createdById,
+            status: 'active',
+            academicYear: new Date().getFullYear().toString(),
+            openedAt: new Date(),
+            name: 'Libro de Clases' // Default name, can be updated based on Level name if needed
+        });
+
+        return await repo.save(book);
+    },
+
+    async listBooks(companyId: string, userId: string, roles: string[]) {
+        const ClassBook = (await import('../entities/academic/class-books.entity')).ClassBook;
+        const repo = AppDataSource.getRepository(ClassBook);
+
+        const qb = repo.createQueryBuilder('book')
+            .leftJoinAndSelect('book.level', 'level')
+            .leftJoinAndSelect('book.headTeacher', 'headTeacher')
+            .where('book.company_id = :companyId', { companyId });
+
+        // If not Admin/Director, restrict to own books
+        const canSeeAll = roles.includes('ADMIN') || roles.includes('DIRECTOR');
+        if (!canSeeAll) {
+            qb.andWhere('book.head_teacher_id = :userId', { userId });
+        }
+
+        qb.orderBy('level.name', 'ASC');
+
+        const books = await qb.getMany();
+
+        // Enrich with entry counts or latest activity if needed?
+        // For now preventing N+1 queries by just returning books
+        return books;
+    },
+
+    async getBookById(id: string, companyId: string) {
+        const ClassBook = (await import('../entities/academic/class-books.entity')).ClassBook;
+        const repo = AppDataSource.getRepository(ClassBook);
+
+        const book = await repo.findOne({
+            where: { id, companyId },
+            relations: ['level', 'headTeacher']
+        });
+
+        if (!book) throw new Error('Libro de clases no encontrado');
+        return book;
     }
 };
+

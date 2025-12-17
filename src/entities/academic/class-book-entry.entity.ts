@@ -52,6 +52,9 @@ export class ClassBookEntry extends BaseEntity {
     @Column({ name: 'students_late', type: 'int' })
     studentsLate: number;
 
+    @Column({ name: 'students_justified', type: 'int', default: 0 })
+    studentsJustified: number;
+
     @Column({ name: 'attendance_percentage', type: 'decimal', precision: 5, scale: 2 })
     attendancePercentage: number;
 

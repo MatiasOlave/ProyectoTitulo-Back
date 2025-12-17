@@ -99,21 +99,54 @@ export const classBookController = {
             const photos = files['photos']?.map(f => f.path) || [];
             const documents = files['documents']?.map(f => f.path) || [];
 
-            // We need to extend service to handle file attachment logic
-            // But wait, classBookService.updateEntry can handle partial updates?
-            // No, updateEntry uses DTO which might not include photos/documents if I didn't add them.
             // Let's implement attachFiles in service.
-
-            // Wait, I need to call the service.
-            // Assuming I'll add attachFiles to service next.
-            // Or I can use updateEntry if I add photos/documents to DTO... 
-            // but DTO is z.object().
-            // I'll create `attachFiles` in service.
 
             const entry = await classBookService.attachFiles(req.params.id, req.companyId!, photos, documents);
             return res.json({ success: true, entry });
         } catch (error: any) {
             return res.status(400).json({ success: false, error: error.message });
         }
+    },
+
+    async deleteEntry(req: AuthRequest, res: Response) {
+        try {
+            await classBookService.deleteEntry(req.params.id, req.companyId!);
+            return res.json({ success: true, message: 'Entrada eliminada correctamente' });
+        } catch (error: any) {
+            return res.status(400).json({ success: false, error: error.message });
+        }
+    },
+
+    // --- Books ---
+
+    async createBook(req: AuthRequest, res: Response) {
+        try {
+            const { createClassBookSchema } = require('../schemas/classBook.schema'); // lazy load to ensure updated schema
+            const data = createClassBookSchema.parse(req.body);
+            const book = await classBookService.createBook(req.companyId!, data.levelId, data.headTeacherId, req.user!.userId);
+            return res.status(201).json({ success: true, book });
+        } catch (error: any) {
+            return res.status(400).json({ success: false, error: error.message });
+        }
+    },
+
+    async listBooks(req: AuthRequest, res: Response) {
+        try {
+            const roles = req.user?.roles || [];
+            const books = await classBookService.listBooks(req.companyId!, req.user!.userId, roles);
+            return res.json({ success: true, books });
+        } catch (error: any) {
+            return res.status(500).json({ success: false, error: error.message });
+        }
+    },
+
+    async getBookById(req: AuthRequest, res: Response) {
+        try {
+            const book = await classBookService.getBookById(req.params.id, req.companyId!);
+            return res.json({ success: true, book });
+        } catch (error: any) {
+            return res.status(404).json({ success: false, error: error.message });
+        }
     }
 };
+
