@@ -28,7 +28,7 @@ export const authService = {
 
     const user = await userRepository.findOne({
       where: { email, isActive: true },
-      relations: ['company']
+      relations: ['company', 'drivers']
     });
 
     if (!user) {
@@ -101,6 +101,7 @@ export const authService = {
           code: ur.role.code
         })),
         permissions,
+        driverId: user.drivers?.[0]?.id
       },
     };
   },
@@ -120,7 +121,7 @@ export const authService = {
       // Buscar usuario actualizado
       const user = await userRepository.findOne({
         where: { id: decoded.userId, isActive: true },
-        relations: ['company']
+        relations: ['company', 'drivers']
       });
 
       if (!user) {
@@ -197,7 +198,7 @@ export const authService = {
       // Fetch full user data to ensure we have up-to-date info
       const user = await userRepository.findOne({
         where: { id: payload.userId },
-        relations: ['company']
+        relations: ['company', 'drivers']
       });
 
       if (!user) {
@@ -235,6 +236,7 @@ export const authService = {
             code: ur.role.code
           })),
           permissions,
+          driverId: user.drivers?.[0]?.id
         }
       };
     } catch {

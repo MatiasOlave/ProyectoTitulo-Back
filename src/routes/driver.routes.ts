@@ -19,7 +19,7 @@ router.use(companyContextMiddleware);
 // GET /api/drivers - List all (Restricted to Admin/Director/Supervisor and Conductor)
 router.get(
     '/',
-    requireAnyRole(['ADMIN', 'DIRECTOR', 'ENCARGADO_TRANSPORTE']),
+    requireAnyRole(['ADMIN', 'DIRECTOR', 'ENCARGADO_TRANSPORTE', 'DRIVER']),
     driverController.getDrivers
 );
 
