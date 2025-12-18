@@ -29,13 +29,19 @@ import inspectionRoutes from './routes/inspection.routes';
 config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Middlewares básicos
 app.use(cookieParser());
 app.use(helmet());
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://192.168.1.9:3001',  // Tu IP local
+    'http://192.168.1.9:8081',  // Puerto típico de Expo
+    'http://192.168.1.9:19006', // Otro puerto común de Expo
+  ],
   credentials: true
 }));
 app.use(morgan('combined'));
@@ -65,8 +71,13 @@ app.get('/', (_req: express.Request, res: express.Response) => {
 });
 
 import planningRoutes from './routes/planning.route';
+import superadminRoutes from './routes/superadmin.route';
 
 // API Routes
+// SUPERADMIN Routes (Must be registered BEFORE companyContextMiddleware if we want them totally separate, 
+// o al menos que el router maneje su propio bypass, pero aquí es seguro ponerlo antes o simplemente fuera del grupo protegido)
+app.use('/api/superadmin', superadminRoutes);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/auth/company', authCompanyRoutes);
 app.use('/api/users', userRoutes);
@@ -90,6 +101,9 @@ import companyRoutes from './routes/company.route';
 app.use('/api/companies', companyRoutes);
 app.use('/api/attendance', attendanceRoutes);
 
+import paymentRoutes from './routes/payment.routes';
+app.use('/api/payments', paymentRoutes);
+
 // Static files (Images)
 import path from 'path';
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -111,8 +125,11 @@ const startServer = async () => {
   const { startDocumentMonitor } = require('./tasks/document-monitor.task');
   startDocumentMonitor();
 
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Server running on port ${PORT}`);
+    console.log(`📡 Local: http://localhost:${PORT}`);
+    console.log(`📡 Network: http://192.168.1.9:${PORT}`);
+    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 };
 

@@ -13,7 +13,6 @@ import { UserRole } from '../entities/auth/user-role.entity';
 import { User } from '../entities/auth/user.entity';
 import { CompanySubscription } from '../entities/companies/company-subscription.entity';
 import { Company } from '../entities/companies/company.entity';
-import { SubscriptionPlan } from '../entities/companies/subscription-plan.entity';
 import { MedicalIncident } from '../entities/medical/medical-incident.entity';
 import { City } from '../entities/shared/city.entity';
 import { Country } from '../entities/shared/country.entity';
@@ -39,6 +38,9 @@ import { VehicleInspection } from '../entities/transport/vehicle-inspection.enti
 import { CompanyIsolationSubscriber } from '../subscribers/company-isolation.subscriber';
 import { ClassBook } from '../entities/academic/class-books.entity';
 import { config } from 'dotenv';
+import { StudentBillingSnapshot } from '../entities/companies/student-billing.entity';
+import { BillingPeriod } from '../entities/companies/billing-periods.entity';
+import { PricingConfig } from '../entities/companies/pricing-config.entity';
 
 config();
 
@@ -65,7 +67,9 @@ export const AppDataSource = new DataSource({
     User,
     CompanySubscription,
     Company,
-    SubscriptionPlan,
+    StudentBillingSnapshot,
+    BillingPeriod,
+    PricingConfig,
     MedicalIncident,
     City,
     Country,
