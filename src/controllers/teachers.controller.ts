@@ -132,9 +132,7 @@ export const getTeachers = async (req: AuthRequest, res: Response): Promise<void
             queryBuilder.andWhere('user.isActive = :isActive', { isActive: false });
         }
 
-        if (isTeacherRole(req) && user?.userId) {
-            queryBuilder.andWhere('user.id != :currentUserId', { currentUserId: user.userId });
-        }
+
 
         const teachers = await queryBuilder.getMany();
 
