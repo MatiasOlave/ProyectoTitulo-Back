@@ -37,6 +37,7 @@ const requireAdminOrDirector = (req: AuthRequest, res: Response, next: NextFunct
 };
 
 // User management routes - all require DIRECTOR or ADMIN role
+router.get('/role-counts', requireAdminOrDirector, userController.getRoleCounts);
 router.post('/', requireAdminOrDirector, userController.createUser);
 router.get('/', requireAdminOrDirector, userController.listUsers);
 router.get('/:id', requireAdminOrDirector, userController.getUserById);

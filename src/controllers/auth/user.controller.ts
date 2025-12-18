@@ -223,5 +223,25 @@ export const userController = {
                 error: error.message
             });
         }
+    },
+
+    /**
+     * GET /api/users/role-counts
+     * Get role counts for critical roles (ADMIN, DIRECTOR)
+     */
+    async getRoleCounts(req: AuthRequest, res: Response) {
+        try {
+            const roleCounts = await userService.getRoleCounts(req.companyId!);
+
+            return res.json({
+                success: true,
+                roleCounts
+            });
+        } catch (error: any) {
+            return res.status(500).json({
+                success: false,
+                error: 'Error al obtener conteo de roles'
+            });
+        }
     }
 };

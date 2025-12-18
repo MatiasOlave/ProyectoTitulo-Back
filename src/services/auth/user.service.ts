@@ -531,5 +531,38 @@ export const userService = {
                 code: newRole.code
             }
         };
+    },
+
+    /**
+     * Get role counts for critical roles (ADMIN, DIRECTOR)
+     */
+    async getRoleCounts(companyId: string) {
+        const userRepo = getScopedRepository(User);
+        const roleRepo = getScopedRepository(Role);
+
+        // Find ADMIN and DIRECTOR roles using In operator
+        const criticalRoles = await roleRepo.find({
+            where: {
+                code: In(['ADMIN', 'DIRECTOR'])
+            }
+        });
+
+        const roleCounts: { [roleCode: string]: number } = {};
+
+        // Count active users for each critical role
+        for (const role of criticalRoles) {
+            const count = await userRepo['repository']
+                .createQueryBuilder('user')
+                .leftJoin('user.userRoles', 'userRole')
+                .where('user.companyId = :companyId', { companyId })
+                .andWhere('userRole.roleId = :roleId', { roleId: role.id })
+                .andWhere('user.isActive = :isActive', { isActive: true })
+                .andWhere('user.deletedAt IS NULL')
+                .getCount();
+
+            roleCounts[role.code] = count;
+        }
+
+        return roleCounts;
     }
 };

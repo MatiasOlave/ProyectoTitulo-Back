@@ -13,6 +13,7 @@ import { AttendanceAlert } from '../attendance/attendance-alert.entity';
 import { StudentObservation } from '../academic/student-observation.entity';
 import { RouteStop } from '../transport/route-stop.entity';
 import { TripStop } from '../transport/trip-stop.entity';
+import { StudentBillingSnapshot } from '../companies/student-billing.entity';
 
 
 @Entity('students')
@@ -107,4 +108,7 @@ export class Student extends BaseEntity {
 
     @OneToMany(() => TripStop, tripStop => tripStop.student)
     tripStops: TripStop[]
+
+    @OneToMany(() => StudentBillingSnapshot, snapshot => snapshot.student)
+    studentSnapshots: StudentBillingSnapshot[]
 }
