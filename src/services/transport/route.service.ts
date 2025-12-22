@@ -54,6 +54,7 @@ export const routeService = {
             .leftJoinAndSelect('route.vehicle', 'vehicle')
             .leftJoinAndSelect('route.primaryDriver', 'driver')
             .leftJoinAndSelect('route.stops', 'stops')
+            .leftJoinAndSelect('stops.student', 'stopStudent')
             .where('route.id = :id', { id })
             .andWhere('route.companyId = :companyId', { companyId })
             .orderBy('stops.stopOrder', 'ASC')
