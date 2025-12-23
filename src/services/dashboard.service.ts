@@ -7,6 +7,7 @@ import { StudentGuardian } from '../entities/students/student-guardian.entity';
 import { Guardian } from '../entities/students/guardian.entity';
 import { Vehicle } from '../entities/transport/vehicle.entity';
 import { Driver } from '../entities/transport/driver.entity';
+import { routeService } from './transport/route.service';
 import { DriverVehicleAssignment } from '../entities/transport/driver-vehicle-assignment.entity';
 import { ActivityPlanning } from '../entities/academic/activity-planning.entity';
 import { ClassBookEntry } from '../entities/academic/class-book-entry.entity';
@@ -217,14 +218,41 @@ export const dashboardService = {
             }
         }
 
+        let nextRoute = null;
+
+        if (driver) {
+            // Use Route Module Service as requested
+            const routes = await routeService.getRoutes(companyId, {
+                driverId: driver.id,
+                isActive: true
+            });
+
+            if (routes && routes.length > 0) {
+                // Pick the first one (already ordered by name in service, but we might want time?
+                // Service orders by name ASC. We might want to sort by time here or trust the list.
+                // For now, let's take the first one. 
+                // Note: getRoutes in service loads stops? 
+                // Looking at service: getRoutes does NOT load 'stops'. getRouteById does.
+                // We need stops count. 
+                // So we should get the ID from the list, then call getRouteById to get full details including stops.
+
+                const firstRoute = routes[0];
+                const fullRoute = await routeService.getRouteById(firstRoute.id, companyId);
+
+                if (fullRoute) {
+                    nextRoute = {
+                        name: fullRoute.name,
+                        startTime: fullRoute.scheduledStartTime,
+                        stopsCount: fullRoute.stops ? fullRoute.stops.length : 0
+                    };
+                }
+            }
+        }
+
         return {
             role: 'DRIVER',
             currentVehicle,
-            nextRoute: {
-                name: 'Ruta Asignada',
-                startTime: '07:00 AM',
-                stopsCount: 0 // Fetch from Route entities if available
-            }
+            nextRoute
         };
     },
 
