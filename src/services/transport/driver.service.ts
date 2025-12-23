@@ -14,64 +14,24 @@ export class DriverService {
     private driverRepository = AppDataSource.getRepository(Driver);
 
     async findAll(filters: any = {}) {
-        const companyId = getCompanyId();
-        if (!companyId) throw new Error('Company Context missing');
+        console.log('DEBUG: Fetching ALL drivers (incl. deleted)');
 
         const query = this.driverRepository.createQueryBuilder('driver')
+            // .withDeleted() // Standard view does not show deleted
             .leftJoinAndSelect('driver.user', 'user')
             .leftJoinAndSelect('driver.city', 'city')
-            // Join for filters (optional loads)
             .leftJoinAndSelect('driver.vehicleAssignments', 'assignment', 'assignment.unassignmentDate IS NULL')
             .leftJoinAndSelect('assignment.vehicle', 'vehicle')
-            .where('driver.companyId = :companyId', { companyId })
+            .orderBy('driver.created_at', 'DESC');
+
+        // Standard Filters
+        query.where('driver.companyId = :companyId', { companyId: getCompanyId() })
             .andWhere('driver.status != :bajaStatus', { bajaStatus: 'baja' });
 
-        // 1. Text Search (Name or RUT)
-        if (filters.q) {
-            query.andWhere(new Brackets(qb => {
-                qb.where('driver.firstName ILIKE :q', { q: `%${filters.q}%` })
-                    .orWhere('driver.lastName ILIKE :q', { q: `%${filters.q}%` })
-                    .orWhere('driver.rut ILIKE :q', { q: `%${filters.q}%` });
-            }));
-        }
+        const drivers = await query.getMany();
+        console.log(`DEBUG: Found ${drivers.length} drivers`);
 
-        // 2. Status Filter
-        if (filters.status) {
-            query.andWhere('driver.status = :status', { status: filters.status });
-        }
-
-        // 3. Vehicle Filter
-        if (filters.vehicleId) {
-            // Already joined assignment above for selecting, but checking logic:
-            // If checking "Has ANY vehicle" or specific ID? Usually specific ID or "assigned".
-            // If vehicleId is 'assigned' -> just check if assignment exists?
-            // User request says "Dropdown to filter by Vehicle Assigned".
-            query.andWhere('assignment.vehicleId = :vehicleId', { vehicleId: filters.vehicleId });
-        }
-
-        // 4. Alerts Filter
-        if (filters.hasAlerts === 'true' || filters.hasAlerts === true) {
-            query.innerJoin('driver.documentAlerts', 'alert', 'alert.isActive = true');
-        }
-
-        // 5. License Expiration Filter
-        if (filters.licenseStatus) {
-            const today = new Date();
-            if (filters.licenseStatus === 'expired') {
-                query.andWhere('driver.licenseExpirationDate < :today', { today });
-            } else if (filters.licenseStatus === 'near_expiry') {
-                const warningDate = new Date();
-                warningDate.setDate(warningDate.getDate() + 30);
-                query.andWhere('driver.licenseExpirationDate >= :today AND driver.licenseExpirationDate <= :warningDate', { today, warningDate });
-            } else if (filters.licenseStatus === 'valid') {
-                query.andWhere('driver.licenseExpirationDate > :today', { today });
-            }
-        }
-
-        // Order by created date desc
-        query.orderBy('driver.created_at', 'DESC');
-
-        return query.getMany();
+        return drivers;
     }
 
     async create(data: CreateDriverDto, createdById: string) {

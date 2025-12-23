@@ -15,6 +15,7 @@ export class DriverController {
             };
 
             const drivers = await driverService.findAll(filters);
+
             return res.json(drivers);
         } catch (error) {
             console.error('Error fetching drivers:', error);

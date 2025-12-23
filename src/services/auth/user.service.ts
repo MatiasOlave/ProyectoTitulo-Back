@@ -161,7 +161,9 @@ export const userService = {
         // Order by creation date
         queryBuilder.orderBy('user.createdAt', 'DESC');
 
+        console.log('[UserService] Querying users for company:', companyId);
         const [users, total] = await queryBuilder.getManyAndCount();
+        console.log('[UserService] Found:', total, 'users');
 
         return {
             users: users.map((user: any) => ({

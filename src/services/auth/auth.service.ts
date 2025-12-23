@@ -86,6 +86,7 @@ export const authService = {
     await userRepository.save(user);
 
     return {
+      token: accessToken, // Include token in response for mobile apps
       user: {
         id: user.id,
         firstName: user.firstName,

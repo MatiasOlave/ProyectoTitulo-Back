@@ -46,7 +46,7 @@ export const levelService = {
     // Simple getById if needed later
     async getLevelById(id: string) {
         const levelRepo = getScopedRepository(Level);
-        const level = await levelRepo.findOne({ where: { id } });
+        const level = await levelRepo.findOne({ where: { id }, withDeleted: true });
         if (!level) throw new Error('Curso no encontrado');
         return level;
     },
@@ -99,6 +99,7 @@ export const levelService = {
     },
 
     async getLevelDetails(companyId: string, id: string) {
+        console.log(`[DEBUG] getLevelDetails - ID: ${id}, Company: ${companyId}`);
         const levelRepo = getScopedRepository(Level);
 
         const level = await levelRepo.findOne({
@@ -107,7 +108,8 @@ export const levelService = {
                 'students', // To list students
                 'activityPlannings',
                 'activityPlannings.teacher', // To list teachers
-            ]
+            ],
+            withDeleted: true
         });
 
         if (!level) throw new Error('Nivel no encontrado');

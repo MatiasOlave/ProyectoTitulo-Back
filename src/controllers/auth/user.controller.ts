@@ -62,6 +62,12 @@ export const userController = {
             // Validate query parameters
             const filters = userFiltersSchema.parse(req.query);
 
+            console.log('[UserController] listUsers', {
+                companyId: req.companyId,
+                user: req.user?.id,
+                filters
+            });
+
             const result = await userService.listUsers(
                 req.companyId!,
                 filters

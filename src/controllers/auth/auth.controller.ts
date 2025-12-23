@@ -17,6 +17,7 @@ export const authController = {
             return res.json({
                 success: true,
                 user: result.user,
+                token: result.token,
                 message: 'Login exitoso'
             });
         } catch (error: any) {
