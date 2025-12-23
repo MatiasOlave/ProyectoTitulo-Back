@@ -12,6 +12,8 @@ router.use(authMiddleware);
 router.post('/books', classBookController.createBook);
 router.get('/books', classBookController.listBooks);
 router.get('/books/:id', classBookController.getBookById);
+router.put('/books/:id', classBookController.updateBook);
+router.delete('/books/:id', classBookController.deleteBook);
 
 router.post('/', classBookController.createEntry);
 router.get('/', classBookController.listEntries); // Can filter by bookId

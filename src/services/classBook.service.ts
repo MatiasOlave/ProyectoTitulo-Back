@@ -467,6 +467,29 @@ export const classBookService = {
 
         if (!book) throw new Error('Libro de clases no encontrado');
         return book;
+    },
+    async updateBook(id: string, companyId: string, data: { headTeacherId: string }) {
+        const ClassBook = (await import('../entities/academic/class-books.entity')).ClassBook;
+        const repo = AppDataSource.getRepository(ClassBook);
+
+        const book = await repo.findOne({ where: { id, companyId } });
+        if (!book) throw new Error('Libro de clases no encontrado');
+
+        if (data.headTeacherId) {
+            book.headTeacherId = data.headTeacherId;
+        }
+
+        return await repo.save(book);
+    },
+
+    async deleteBook(id: string, companyId: string) {
+        const ClassBook = (await import('../entities/academic/class-books.entity')).ClassBook;
+        const repo = AppDataSource.getRepository(ClassBook);
+
+        const book = await repo.findOne({ where: { id, companyId } });
+        if (!book) throw new Error('Libro de clases no encontrado');
+
+        return await repo.softRemove(book);
     }
 };
 

@@ -147,6 +147,24 @@ export const classBookController = {
         } catch (error: any) {
             return res.status(404).json({ success: false, error: error.message });
         }
+    },
+
+    async updateBook(req: AuthRequest, res: Response) {
+        try {
+            const book = await classBookService.updateBook(req.params.id, req.companyId!, req.body);
+            return res.json({ success: true, book });
+        } catch (error: any) {
+            return res.status(400).json({ success: false, error: error.message });
+        }
+    },
+
+    async deleteBook(req: AuthRequest, res: Response) {
+        try {
+            await classBookService.deleteBook(req.params.id, req.companyId!);
+            return res.json({ success: true, message: 'Libro de clases eliminado correctamente' });
+        } catch (error: any) {
+            return res.status(400).json({ success: false, error: error.message });
+        }
     }
 };
 

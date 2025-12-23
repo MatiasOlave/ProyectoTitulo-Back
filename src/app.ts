@@ -38,9 +38,9 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://localhost:3001',
-    'http://192.168.1.9:3001',  // Tu IP local
-    'http://192.168.1.9:8081',  // Puerto típico de Expo
-    'http://192.168.1.9:19006', // Otro puerto común de Expo
+    'http://192.168.1.7:3001',  // Tu IP local
+    'http://192.168.1.7:8081',  // Puerto típico de Expo
+    'http://192.168.1.7:19006', // Otro puerto común de Expo
   ],
   credentials: true
 }));
@@ -128,7 +128,7 @@ const startServer = async () => {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Server running on port ${PORT}`);
     console.log(`📡 Local: http://localhost:${PORT}`);
-    console.log(`📡 Network: http://192.168.1.9:${PORT}`);
+    console.log(`📡 Network: http://192.168.1.7:${PORT}`);
     console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 };
