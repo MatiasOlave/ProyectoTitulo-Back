@@ -49,7 +49,7 @@ class EmailService {
     }
 
     async sendGuardianInvitation(email: string, token: string, studentName: string) {
-        const url = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invite/accept?token=${token}`;
+        const url = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invitation/validate/${token}`;
         const subject = 'Invitación a KinderCloud';
         const html = `
             <h1>Bienvenido a KinderCloud</h1>
